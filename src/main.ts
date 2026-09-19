@@ -1,41 +1,504 @@
-import '@fontsource/barlow/400.css';
-import '@fontsource/barlow/600.css';
-import '@fontsource/barlow/700.css';
-import '@fontsource/barlow-condensed/700.css';
-import '@fontsource/barlow-condensed/800.css';
-import '@fontsource/barlow-condensed/900-italic.css';
-import './style.css';
-import * as T from 'three';
-import { Game } from './game';
-import { AudioEngine,loadSettings } from './audio';
-import { FIGHTERS,ARENAS,FighterId,Mode,fighter } from './data';
-import { robot } from './models';
-const ui=document.querySelector<HTMLDivElement>('#ui')!,hud=document.querySelector<HTMLDivElement>('#hud')!,announcement=document.querySelector<HTMLDivElement>('#announcement')!,touch=document.querySelector<HTMLDivElement>('#touch')!;
-const audio=new AudioEngine(loadSettings());let game:Game;let screen='home',mode:Mode='arcade',selected:FighterId='voxxy',opponent:FighterId='biggy',arena=0,selectPlayer=0;let announcementUntil=0,lastHud=0;let cinematicTimer:ReturnType<typeof setInterval>|undefined;const portraits:Record<string,string>={};
+import "@fontsource/barlow/latin-400.css";
+import "@fontsource/barlow/latin-600.css";
+import "@fontsource/barlow/latin-700.css";
+import "@fontsource/barlow-condensed/latin-700.css";
+import "@fontsource/barlow-condensed/latin-800.css";
+import "@fontsource/barlow-condensed/latin-900-italic.css";
+import "./style.css";
+import * as T from "three";
+import { Game } from "./game";
+import { AudioEngine, loadSettings } from "./audio";
+import { FIGHTERS, ARENAS, FighterId, Mode, fighter } from "./data";
+import { robot } from "./models";
+const ui = document.querySelector<HTMLDivElement>("#ui")!,
+  hud = document.querySelector<HTMLDivElement>("#hud")!,
+  announcement = document.querySelector<HTMLDivElement>("#announcement")!,
+  touch = document.querySelector<HTMLDivElement>("#touch")!;
+const audio = new AudioEngine(loadSettings());
+let game: Game;
+let screen = "home",
+  mode: Mode = "arcade",
+  selected: FighterId = "voxxy",
+  opponent: FighterId = "biggy",
+  arena = 0,
+  selectPlayer = 0;
+let announcementUntil = 0,
+  lastHud = 0;
+let cinematicTimer: ReturnType<typeof setInterval> | undefined;
+const portraits: Record<string, string> = {};
 
-function button(text:string,action:string,cls=''){return `<button class="${cls}" data-action="${action}">${text}</button>`;}
-function header(back=false){return `<header><button class="wordmark" data-action="home"><span class="brandmark">R/</span> RUNTIME<span class="muted">RUMBLE</span></button><div class="header-right"><span class="live-dot"></span> AFTER HOURS · ANTWERP ${back?button('← BACK','home','small'):button('HOW TO PLAY','help','small')} ${button('⚙ SETTINGS','settings','small')}</div></header>`;}
-function footer(){return `<footer><span>DEVOXX / AFTER HOURS</span><span>FIVE ROBOTS. ZERO SUPERVISION.</span><button data-action="credits">CREDITS ↗</button></footer>`;}
-function setScreen(name:string,html:string){screen=name;ui.innerHTML=html;ui.className=name;ui.hidden=false;game.input.clear();}
-function home(){clearInterval(cinematicTimer);game.input.lastActivity=performance.now();game.menuScene();hud.hidden=true;touch.hidden=true;announcement.textContent='';setScreen('home',`${header()}<main class="home-layout"><section class="home-copy"><div class="eyebrow"><span class="line"></span> THE CONFERENCE IS OVER. THE FIGHT ISN’T.</div><h1>RUNTIME<br><em>RUMBLE</em><span class="title-dot">®</span></h1><p class="tagline">Five robots. <strong>Zero supervision.</strong></p><div class="edition"><span>01—05</span> ORIGINAL MACHINES <b>×</b> <span>06</span> UNSAFE ARENAS</div></section><nav class="mode-menu"><div class="menu-label">CHOOSE YOUR BAD IDEA <span>↙</span></div>${button('<span><b>ARCADE</b><small>One robot. Five increasingly bad decisions.</small></span><i>↗</i>','arcade','mode-button primary')}${button('<span><b>LOCAL VERSUS</b><small>Bring a friend. Leave with a rival.</small></span><i>↗</i>','versus','mode-button')}${button('<span><b>CHAOS MODE</b><small>30 seconds. All hazards. No excuses.</small></span><i>↗</i>','chaos','mode-button')}<div class="menu-extras">${button('TRAINING ROOM','training')}${button('WATCH INTRO ↗','intro')}</div><div class="controller-note">◉ KEYBOARD + GAMEPAD READY<br><span>ENTER / START TO PLAY</span></div></nav></main><div class="roster-labels">${FIGHTERS.map((f,i)=>`<span><small>0${i+1}</small> ${f.name}</span>`).join('')}</div>${footer()}`);}
-function cards(){return FIGHTERS.map((f,i)=>`<button class="fighter-card ${(selectPlayer===0?selected:opponent)===f.id?'selected':''}" data-fighter="${f.id}" style="--fighter:${f.color}" aria-pressed="${(selectPlayer===0?selected:opponent)===f.id}"><span class="card-num">0${i+1} / ${f.id==='richie'?'EDGE CASE':f.id==='biggy'?'HEAVY CLASS':'MACHINE'}</span><img src="${portraits[f.id]}" alt="${f.name} 3D fighter"><span class="fighter-name">${f.name}</span><small>${f.tag}</small><span class="selected-indicator">${(selectPlayer===0?selected:opponent)===f.id?'● SELECTED':'＋ SELECT'}</span></button>`).join('');}
-function select(){game.menuScene();hud.hidden=true;touch.hidden=true;const f=fighter(selectPlayer===0?selected:opponent);setScreen('select',`${header(true)}<main class="select-main"><div class="section-top"><div><div class="eyebrow">${mode.toUpperCase()} / ${selectPlayer===0?'PLAYER 01':'PLAYER 02'}</div><h2>SELECT YOUR <em>MACHINE.</em></h2></div><p class="muted">Different mass. Different moves.<br>Same questionable judgement.</p></div><div class="fighter-grid">${cards()}</div><section class="fighter-detail"><div><span class="eyebrow">${f.tag}</span><h3>${f.quote}</h3><p><b>${f.special}</b> <span class="muted">/</span> ${f.secondary}</p></div><div class="stats">${['SPEED','POWER','MASS','REACH'].map((s,i)=>`<div><small>${s}</small><span>${'▰'.repeat(f.stats[i])}<i>${'▱'.repeat(5-f.stats[i])}</i></span></div>`).join('')}</div>${button(mode==='versus'&&selectPlayer===0?'SELECT PLAYER 02 →':'CHOOSE ARENA →','confirm-fighter','primary cta')}</section></main>${footer()}`);}
-function stages(){setScreen('stages',`${header(true)}<main class="select-main"><div class="section-top"><div><div class="eyebrow">${fighter(selected).name} ${mode==='versus'?'vs '+fighter(opponent).name:'IS READY'}</div><h2>THE ARENA IS THE<br><em>SIXTH FIGHTER.</em></h2></div><p>${mode==='arcade'?'Your run begins in the exhibition hall.<br>Survive to reach the keynote stage.':'Pick somewhere with poor safety standards.'}</p></div><div class="arena-grid">${ARENAS.map((a,i)=>`<button data-arena="${i}" class="arena-card ${arena===i?'selected':''}" ${mode==='arcade'&&i!==0?'disabled':''} style="--fighter:${a.color}"><span class="arena-number">0${i+1}</span><small>${a.label}</small><h3>${a.name}</h3><p>${a.description}</p><span class="hazard-label">⚠ ${a.hazard}</span></button>`).join('')}</div><div class="stage-bottom">${button('← CHANGE MACHINE','select','small')}<p>Move <kbd>A</kbd><kbd>D</kbd> · Hit <kbd>J</kbd><kbd>K</kbd> · Special <kbd>L</kbd></p>${button('EXECUTE! ↗','fight','primary cta')}</div></main>${footer()}`);}
-function launch(){audio.unlock();clearInterval(cinematicTimer);screen='fight';ui.hidden=true;hud.hidden=false;touch.hidden=false;announcement.textContent='';if(mode==='arcade'){const rivals=FIGHTERS.filter(f=>f.id!==selected);opponent=rivals[0].id;arena=0;}game.start(mode,selected,opponent,arena);makeHud();makeTouch();}
-function makeHud(){hud.innerHTML=`<div class="hud-top"><div class="fighter-hud"><div class="hud-name"><span id="name0"></span><small>PLAYER 01</small></div><div class="integrity"><div id="hp0"></div></div><div class="hud-sub"><span id="rounds0"></span><span id="health0"></span></div><div class="oc"><div id="oc0"></div></div><small id="oclabel0">OVERCLOCK</small></div><div class="timer-box"><small>ROUND <span id="round-number">1</span></small><strong id="timer">75</strong><small>BEST OF THREE</small></div><div class="fighter-hud right"><div class="hud-name"><span id="name1"></span><small>${mode==='versus'?'PLAYER 02':mode==='training'?'TRAINING DUMMY':'CPU'}</small></div><div class="integrity"><div id="hp1"></div></div><div class="hud-sub"><span id="rounds1"></span><span id="health1"></span></div><div class="oc"><div id="oc1"></div></div><small id="oclabel1">OVERCLOCK</small></div></div><div class="arena-hud"><span id="arena-label"></span><span id="hazard-status"></span></div><div class="fight-bottom"><span><kbd>A D</kbd> MOVE <kbd>W</kbd> JUMP <kbd>J K</kbd> HIT <kbd>L I</kbd> SPECIAL <kbd>U</kbd> GRAB <kbd>SPACE</kbd> BLOCK <kbd>O</kbd> OVERCLOCK</span>${button('Ⅱ PAUSE','pause','small')}</div>`;hud.querySelector('button')!.onclick=pause;}
-function makeTouch(){touch.innerHTML=`<div class="touch-move">${['left','crouch','right','jump'].map((a,i)=>`<button data-touch="${a}" aria-label="${a}">${['◀','▼','▶','▲'][i]}</button>`).join('')}</div><div class="touch-actions">${['block','grab','light','heavy','special','secondary','overclock'].map((a,i)=>`<button data-touch="${a}">${['BLOCK','GRAB','LIGHT','HEAVY','SPEC','ALT','OC'][i]}</button>`).join('')}</div>`;touch.querySelectorAll<HTMLButtonElement>('button').forEach(b=>{b.onpointerdown=e=>{e.preventDefault();b.setPointerCapture(e.pointerId);game.input.touch.add(b.dataset.touch!);audio.unlock();};const release=()=>game.input.touch.delete(b.dataset.touch!);b.onpointerup=release;b.onpointercancel=release;b.onlostpointercapture=release;});}
-function updateHud(){if(performance.now()>announcementUntil)announcement.classList.remove('visible');if(hud.hidden||performance.now()-lastHud<50)return;lastHud=performance.now();game.fighters.forEach((f,i)=>{document.getElementById(`name${i}`)!.textContent=f.def.name;document.getElementById(`hp${i}`)!.style.width=`${f.hp}%`;document.getElementById(`health${i}`)!.textContent=`${Math.ceil(f.hp)}% INTEGRITY`;document.getElementById(`rounds${i}`)!.textContent=[0,1].map(n=>game.wins[i]>n?'●':'○').join(' ');document.getElementById(`oc${i}`)!.style.width=`${f.oc>0?f.oc*20:f.meter}%`;document.getElementById(`oclabel${i}`)!.textContent=f.disabled>0?'SPECIALS OFFLINE':f.oc>0?f.def.overclock:f.meter>=100?'OVERCLOCK READY · '+(i===0?'O / RT':'5 / RT'):'OVERCLOCK';});document.getElementById('timer')!.textContent=game.mode==='training'?'∞':String(Math.ceil(game.timer)).padStart(2,'0');document.getElementById('round-number')!.textContent=String(game.round);document.getElementById('arena-label')!.textContent=ARENAS[game.arenaIndex].name+(game.mode==='arcade'?` / FIGHT ${game.stage+1} OF 5`:'');document.getElementById('hazard-status')!.textContent=ARENAS[game.arenaIndex].hazard+' / '+game.hazardState.toUpperCase();}
-function announce(title:string,sub=''){announcement.innerHTML=`<strong>${title}</strong><span>${sub}</span>`;announcement.classList.add('visible');announcementUntil=performance.now()+(game.phase==='roundEnd'?2800:1500);}
-function pause(){if(game.mode==='attract'){home();return;}if(!['fight','pause'].includes(screen))return;if(game.paused){resume();return;}game.paused=true;game.audio.active=false;setScreen('pause',`<div class="modal"><div class="eyebrow">PROCESS SUSPENDED</div><h2>TAKE A<br><em>BREATHER.</em></h2><p>The robots are reconsidering their life choices.</p>${button('RESUME →','resume','primary cta')}${button('CONTROLS & MOVE LIST','help','wide')}${button('SETTINGS','settings','wide')}${button('RETURN TO TITLE','home','wide')}</div>`);}
-function resume(){game.input.clear();game.paused=false;game.audio.active=true;screen='fight';ui.hidden=true;}
-function results(winner:number){if(game.mode==='attract'){home();return;}hud.hidden=true;touch.hidden=true;announcement.classList.remove('visible');const arcade=game.mode==='arcade',done=arcade&&game.stage===4&&winner===0,won=winner===0;const f=game.fighters[Math.max(0,winner)].def;const jokes:Record<FighterId,string>={voxxy:'One screw falls out. Voxxy files it under “probably optional”.',droid:'ROOT CAUSE: USER ERROR.',biggy:'Reversing… charging… BONK.',richie:'One last tiny bonk. For quality assurance.',microduck:'A small kick. A slow turn. One quack.'};if(f.id==='microduck'){audio.quack();game.stats.quacks++;}setScreen('results',`${header()}<main class="results-main"><div><div class="eyebrow">${done?'ARCADE CLEARED':arcade?`FIGHT ${game.stage+1} / 5`:'MATCH COMPLETE'} · ${game.wins[0]} — ${game.wins[1]}</div><h2>${done?'RUNTIME<br><em>COMPLETE.</em>':`${f.name}<br><em>WINS.</em>`}</h2><p class="result-joke"><small>POST-MORTEM</small><br>${jokes[f.id]}</p><div class="result-buttons">${button(arcade&&won&&!done?'NEXT OPPONENT →':arcade&&!won?'CONTINUE / RETRY →':'REMATCH →',arcade&&won&&!done?'next':arcade&&!won?'retry':'fight','primary cta')}${button('SELECT MACHINE','restart-select','wide')}${button('TITLE SCREEN','home','wide')}</div></div><div class="result-card"><img src="${portraits[f.id]}" alt="${f.name}"><dl>${Object.entries(game.stats).map(([k,v])=>`<div><dt>${({matches:'MATCHES WON',roundsLost:'ROUNDS LOST',failures:'SYSTEM FAILURES',ringOuts:'RING OUTS',overclocks:'OVERCLOCKS',quacks:'QUACKS',biggyHits:'BIGGY HITS SURVIVED'} as Record<string,string>)[k]}</dt><dd>${v}</dd></div>`).join('')}</dl></div></main>${footer()}`);}
-let returnScreen='home';
-function settings(){if(screen==='fight')pause();returnScreen=screen;const s=audio.settings;setScreen('settings',`${header()}<div class="modal settings-modal"><div class="eyebrow">CABINET CONFIGURATION</div><h2>YOUR <em>RULES.</em></h2>${(['master','music','announcer'] as const).map(k=>`<label>${k.toUpperCase()} VOLUME <input aria-label="${k} volume" data-setting="${k}" type="range" min="0" max="1" step="0.05" value="${s[k]}"></label>`).join('')}<label class="check">REDUCED CAMERA SHAKE <input type="checkbox" data-setting="reducedShake" ${s.reducedShake?'checked':''}></label><label>CPU DIFFICULTY <select data-setting="difficulty"><option value="0" ${s.difficulty===0?'selected':''}>Friendly chaos</option><option value="1" ${s.difficulty===1?'selected':''}>Standard issue</option><option value="2" ${s.difficulty===2?'selected':''}>Production incident</option></select></label><p>Settings are saved on this device.</p>${button('SAVE & BACK →','close-panel','primary cta')}</div>`);ui.querySelectorAll<HTMLInputElement|HTMLSelectElement>('[data-setting]').forEach(el=>el.oninput=()=>{const k=el.dataset.setting!;(audio.settings as unknown as Record<string,unknown>)[k]=el instanceof HTMLInputElement&&el.type==='checkbox'?el.checked:Number(el.value);try{localStorage.setItem('rumble-settings',JSON.stringify(audio.settings));}catch{}audio.unlock();});}
-function help(){if(screen==='fight')pause();returnScreen=screen;setScreen('help',`${header()}<main class="help-main"><div class="eyebrow">READ THIS BEFORE THE INCIDENT</div><h2>FIGHT. CRASH. <em>REBOOT.</em></h2><p>Win two rounds. Empty their integrity bar. Use the warning strip to launch them into a bad day.</p><div class="help-columns"><section><h3>CONTROLS</h3><table><thead><tr><th>ACTION</th><th>PLAYER 1</th><th>PLAYER 2</th><th>GAMEPAD</th></tr></thead><tbody>${[['Move','A / D','← / →','Stick / D-pad'],['Jump','W','↑','Y / △'],['Crouch / low hit','S + J/K','↓ + 1/2','Down + A/B'],['Light / heavy','J / K','1 / 2','A / B'],['Special / alternate','L / I','3 / 4','X / LT'],['Grab','U','0','RB'],['Block','Space','Right Shift','LB'],['Overclock','O','5','RT'],['Pause','Esc','Esc','Start']].map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table><p>One controller in versus controls Player 2. Two controllers control Players 1 and 2. Tap attacks; hold block. Biggy’s special charges while held.</p></section><section><h3>MEET YOUR BAD DECISIONS</h3>${FIGHTERS.map(f=>`<p><b style="color:${f.color}">${f.name}</b> · ${f.special} / ${f.secondary}<br><small>${f.id==='voxxy'?'Fast jabs and throws. Grab close, then aim toward a hazard.':f.id==='droid'?'Long reach. Override nearby hazards; beware the wind-up.':f.id==='biggy'?'Hold special to build momentum. Alternate braces against knockback.':f.id==='richie'?'Hop to move. Launch with special. Crouch to play dead and evade jabs.':'Special toggles roller mode. Fast kicks, low friction, very little mass.'}</small></p>`).join('')}<p><b>WARNING → ARMED → ACTIVE</b><br>Hazards announce before firing. Block stops most strikes, but throws beat block. Crouch-block stops low attacks.</p></section></div>${button('GOT IT →','close-panel','primary cta')}</main>`);}
-function closePanel(){if(game.paused){screen='fight';game.paused=false;pause();}else if(returnScreen==='select')select();else if(returnScreen==='stages')stages();else home();}
-function credits(){returnScreen=screen;setScreen('credits',`${header()}<div class="modal"><div class="eyebrow">BUILT AFTER HOURS</div><h2>THE <em>CREW.</em></h2><p>Original arcade game concept by Jan Van Wassenhove.</p><p>Voxxy, Droid, Biggy and venue references: <a href="https://game.devoxx.be/references.html" target="_blank" rel="noopener">Devoxx Robot Games ↗</a></p><p>Richie Mini is inspired by <a href="https://github.com/pollen-robotics/reachy_mini" target="_blank" rel="noopener">Reachy Mini</a>. Microduck is inspired by <a href="https://pollen-robotics.com/microduck/" target="_blank" rel="noopener">Pollen Robotics Microduck</a>.</p><p>Original procedural 3D models, stylised venue scenes and synthesised music. Three.js · Rapier · Vite. Independent fan game; no affiliation or endorsement implied.</p>${button('BACK →','close-panel','primary cta')}</div>`);}
-function intro(){home();screen='intro';let frame=0;const lines=['KINEPOLIS, ANTWERP · 02:14 AM','THE CONFERENCE IS OVER.','SOMEONE FORGOT TO SHUT DOWN THE ROBOTS.','VOXXY. DROID. BIGGY.','RICHIE MINI. MICRODUCK.','FIVE ROBOTS. ZERO SUPERVISION.'];const show=()=>{ui.innerHTML=`<div class="cinematic"><div class="cinema-top">DEVOXX / AFTER HOURS</div><h2>${lines[Math.min(frame,5)]}</h2>${button('SKIP INTRO →','home','small')}</div>`;if(frame===4)audio.quack();if(frame++>=6){clearInterval(cinematicTimer);home();}};show();cinematicTimer=setInterval(show,1800);}
-ui.addEventListener('click',e=>{const el=(e.target as HTMLElement).closest<HTMLElement>('button');if(!el||el.hasAttribute('disabled'))return;audio.unlock();if(el.dataset.fighter){if(selectPlayer===0)selected=el.dataset.fighter as FighterId;else opponent=el.dataset.fighter as FighterId;audio.tone(420,.08,'sine',.12,200);select();return;}if(el.dataset.arena){arena=Number(el.dataset.arena);game.setArena(arena);stages();return;}const a=el.dataset.action;switch(a){case'home':home();break;case'arcade':case'versus':case'chaos':case'training':mode=a;selectPlayer=0;arena=0;select();break;case'select':select();break;case'restart-select':selectPlayer=0;select();break;case'confirm-fighter':if(mode==='versus'&&selectPlayer===0){selectPlayer=1;select();}else stages();break;case'fight':launch();break;case'next':screen='fight';ui.hidden=true;hud.hidden=false;touch.hidden=false;game.nextArcade();makeHud();break;case'retry':screen='fight';ui.hidden=true;hud.hidden=false;touch.hidden=false;game.start(mode,selected,game.fighters[1].def.id,game.arenaIndex,false);makeHud();break;case'pause':pause();break;case'resume':resume();break;case'settings':settings();break;case'help':help();break;case'close-panel':closePanel();break;case'credits':credits();break;case'intro':intro();break;}});
-function createPortraits(){const r=new T.WebGLRenderer({alpha:true,antialias:true,preserveDrawingBuffer:true});r.setSize(360,400);r.toneMapping=T.ACESFilmicToneMapping;r.toneMappingExposure=1.4;const s=new T.Scene();s.add(new T.HemisphereLight('#e3edff','#463329',3));const l=new T.DirectionalLight('#ffe1c5',4);l.position.set(3,6,6);s.add(l);const c=new T.PerspectiveCamera(35,.9,.1,30);for(const f of FIGHTERS){const m=robot(f);m.root.rotation.y=-.3;s.add(m.root);const h=f.height;c.position.set(0,h*.64,h*2.1);c.lookAt(0,h*.5,0);r.render(s,c);portraits[f.id]=r.domElement.toDataURL();s.remove(m.root);m.root.traverse(o=>{if(o instanceof T.Mesh)o.geometry.dispose();});}r.dispose();}
-async function boot(){try{game=new Game(document.querySelector<HTMLCanvasElement>('#game')!,audio);await game.init();createPortraits();game.input.menu=(dir,activate)=>{if(screen==='fight'||screen==='attract')return;const buttons=Array.from(ui.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'));const focused=buttons.indexOf(document.activeElement as HTMLButtonElement);if(activate&&focused>=0)buttons[focused].click();else if(dir){const next=(Math.max(focused,0)+dir+buttons.length)%buttons.length;buttons[next]?.focus();game.input.lastActivity=performance.now();}};game.onUpdate=updateHud;game.onAnnounce=announce;game.onEnd=results;game.input.paused=pause;game.input.start=()=>{audio.unlock();if(screen==='fight'||screen==='pause')pause();else if(screen==='home'){mode='arcade';selectPlayer=0;select();}else if(screen==='select'){if(mode==='versus'&&selectPlayer===0){selectPlayer=1;select();}else stages();}else if(screen==='stages')launch();};game.onAttract=()=>{if(screen!=='home')return;screen='attract';ui.innerHTML='<div class="attract-label">LIVE DEMO / AI vs AI<br><strong>PRESS START</strong><small>OR PRESS ANY KEY / TAP TO PLAY</small></div>';hud.hidden=false;mode='attract';game.start('attract',FIGHTERS[Math.floor(Math.random()*5)].id,FIGHTERS[Math.floor(Math.random()*5)].id,Math.floor(Math.random()*5));makeHud();};game.onExitAttract=home;window.addEventListener('blur',()=>{if(screen==='fight')pause();});document.addEventListener('visibilitychange',()=>{if(document.hidden&&screen==='fight')pause();});home();if(import.meta.env.DEV)(window as unknown as {rumble:Game}).rumble=game;}catch(e){console.error(e);ui.innerHTML='<div class="modal"><h2>BOOT INTERRUPTED</h2><p>The 3D engine could not start. Use a browser with WebGL 2 and hardware acceleration enabled.</p><button onclick="location.reload()">RETRY</button></div>';}}
+function button(text: string, action: string, cls = "") {
+  return `<button class="${cls}" data-action="${action}">${text}</button>`;
+}
+function header(back = false) {
+  return `<header><button class="wordmark" data-action="home"><span class="brandmark">R/</span> RUNTIME<span class="muted">RUMBLE</span></button><div class="header-right"><span class="live-dot"></span> AFTER HOURS · ANTWERP ${back ? button("← BACK", "home", "small") : button("HOW TO PLAY", "help", "small")} ${button("⚙ SETTINGS", "settings", "small")}</div></header>`;
+}
+function footer() {
+  return `<footer><span>DEVOXX / AFTER HOURS</span><span>FIVE ROBOTS. ZERO SUPERVISION.</span><button data-action="credits">CREDITS ↗</button></footer>`;
+}
+function setScreen(name: string, html: string) {
+  screen = name;
+  ui.innerHTML = html;
+  ui.className = name;
+  ui.hidden = false;
+  game.input.clear();
+}
+function home() {
+  clearInterval(cinematicTimer);
+  game.input.lastActivity = performance.now();
+  game.menuScene();
+  hud.hidden = true;
+  touch.hidden = true;
+  announcement.textContent = "";
+  setScreen(
+    "home",
+    `${header()}<main class="home-layout"><section class="home-copy"><div class="eyebrow"><span class="line"></span> THE CONFERENCE IS OVER. THE FIGHT ISN’T.</div><h1>RUNTIME<br><em>RUMBLE</em><span class="title-dot">®</span></h1><p class="tagline">Five robots. <strong>Zero supervision.</strong></p><div class="edition"><span>01—05</span> ORIGINAL MACHINES <b>×</b> <span>06</span> UNSAFE ARENAS</div></section><nav class="mode-menu"><div class="menu-label">CHOOSE YOUR BAD IDEA <span>↙</span></div>${button("<span><b>ARCADE</b><small>One robot. Five increasingly bad decisions.</small></span><i>↗</i>", "arcade", "mode-button primary")}${button("<span><b>LOCAL VERSUS</b><small>Bring a friend. Leave with a rival.</small></span><i>↗</i>", "versus", "mode-button")}${button("<span><b>CHAOS MODE</b><small>30 seconds. All hazards. No excuses.</small></span><i>↗</i>", "chaos", "mode-button")}<div class="menu-extras">${button("TRAINING ROOM", "training")}${button("WATCH INTRO ↗", "intro")}</div><div class="controller-note">◉ KEYBOARD + GAMEPAD READY<br><span>ENTER / START TO PLAY</span></div></nav></main><div class="roster-labels">${FIGHTERS.map((f, i) => `<span><small>0${i + 1}</small> ${f.name}</span>`).join("")}</div>${footer()}`,
+  );
+}
+function cards() {
+  return FIGHTERS.map(
+    (f, i) =>
+      `<button class="fighter-card ${(selectPlayer === 0 ? selected : opponent) === f.id ? "selected" : ""}" data-fighter="${f.id}" style="--fighter:${f.color}" aria-pressed="${(selectPlayer === 0 ? selected : opponent) === f.id}"><span class="card-num">0${i + 1} / ${f.id === "richie" ? "EDGE CASE" : f.id === "biggy" ? "HEAVY CLASS" : "MACHINE"}</span><img src="${portraits[f.id]}" alt="${f.name} 3D fighter"><span class="fighter-name">${f.name}</span><small>${f.tag}</small><span class="selected-indicator">${(selectPlayer === 0 ? selected : opponent) === f.id ? "● SELECTED" : "＋ SELECT"}</span></button>`,
+  ).join("");
+}
+function select() {
+  game.menuScene();
+  hud.hidden = true;
+  touch.hidden = true;
+  const f = fighter(selectPlayer === 0 ? selected : opponent);
+  setScreen(
+    "select",
+    `${header(true)}<main class="select-main"><div class="section-top"><div><div class="eyebrow">${mode.toUpperCase()} / ${selectPlayer === 0 ? "PLAYER 01" : "PLAYER 02"}</div><h2>SELECT YOUR <em>MACHINE.</em></h2></div><p class="muted">Different mass. Different moves.<br>Same questionable judgement.</p></div><div class="fighter-grid">${cards()}</div><section class="fighter-detail"><div><span class="eyebrow">${f.tag}</span><h3>${f.quote}</h3><p><b>${f.special}</b> <span class="muted">/</span> ${f.secondary}</p></div><div class="stats">${["SPEED", "POWER", "MASS", "REACH"].map((s, i) => `<div><small>${s}</small><span>${"▰".repeat(f.stats[i])}<i>${"▱".repeat(5 - f.stats[i])}</i></span></div>`).join("")}</div>${button(mode === "versus" && selectPlayer === 0 ? "SELECT PLAYER 02 →" : "CHOOSE ARENA →", "confirm-fighter", "primary cta")}</section></main>${footer()}`,
+  );
+}
+function stages() {
+  setScreen(
+    "stages",
+    `${header(true)}<main class="select-main"><div class="section-top"><div><div class="eyebrow">${fighter(selected).name} ${mode === "versus" ? "vs " + fighter(opponent).name : "IS READY"}</div><h2>THE ARENA IS THE<br><em>SIXTH FIGHTER.</em></h2></div><p>${mode === "arcade" ? "Your run begins in the exhibition hall.<br>Survive to reach the keynote stage." : "Pick somewhere with poor safety standards."}</p></div><div class="arena-grid">${ARENAS.map((a, i) => `<button data-arena="${i}" class="arena-card ${arena === i ? "selected" : ""}" ${mode === "arcade" && i !== 0 ? "disabled" : ""} style="--fighter:${a.color}"><span class="arena-number">0${i + 1}</span><small>${a.label}</small><h3>${a.name}</h3><p>${a.description}</p><span class="hazard-label">⚠ ${a.hazard}</span></button>`).join("")}</div><div class="stage-bottom">${button("← CHANGE MACHINE", "select", "small")}<p>Move <kbd>A</kbd><kbd>D</kbd> · Hit <kbd>J</kbd><kbd>K</kbd> · Special <kbd>L</kbd></p>${button("EXECUTE! ↗", "fight", "primary cta")}</div></main>${footer()}`,
+  );
+}
+function launch() {
+  audio.unlock();
+  clearInterval(cinematicTimer);
+  screen = "fight";
+  (document.activeElement as HTMLElement)?.blur();
+  ui.hidden = true;
+  hud.hidden = false;
+  touch.hidden = false;
+  announcement.textContent = "";
+  if (mode === "arcade") {
+    const rivals = FIGHTERS.filter((f) => f.id !== selected);
+    opponent = rivals[0].id;
+    arena = 0;
+  }
+  game.start(mode, selected, opponent, arena);
+  makeHud();
+  makeTouch();
+}
+function makeHud() {
+  hud.innerHTML = `<div class="hud-top"><div class="fighter-hud"><div class="hud-name"><span id="name0"></span><small>PLAYER 01</small></div><div class="integrity"><div id="hp0"></div></div><div class="hud-sub"><span id="rounds0"></span><span id="health0"></span></div><div class="oc"><div id="oc0"></div></div><small id="oclabel0">OVERCLOCK</small></div><div class="timer-box"><small>ROUND <span id="round-number">1</span></small><strong id="timer">75</strong><small>BEST OF THREE</small></div><div class="fighter-hud right"><div class="hud-name"><span id="name1"></span><small>${mode === "versus" ? "PLAYER 02" : mode === "training" ? "TRAINING DUMMY" : "CPU"}</small></div><div class="integrity"><div id="hp1"></div></div><div class="hud-sub"><span id="rounds1"></span><span id="health1"></span></div><div class="oc"><div id="oc1"></div></div><small id="oclabel1">OVERCLOCK</small></div></div><div class="arena-hud"><span id="arena-label"></span><span id="hazard-status"></span></div><div class="fight-bottom"><span><kbd>A D</kbd> MOVE <kbd>W</kbd> JUMP <kbd>J K</kbd> HIT <kbd>L I</kbd> SPECIAL <kbd>U</kbd> GRAB <kbd>SPACE</kbd> BLOCK <kbd>O</kbd> OVERCLOCK</span>${button("Ⅱ PAUSE", "pause", "small")}</div>`;
+  hud.querySelector("button")!.onclick = pause;
+}
+function makeTouch() {
+  touch.innerHTML = `<div class="touch-move">${["left", "crouch", "right", "jump"].map((a, i) => `<button data-touch="${a}" aria-label="${a}">${["◀", "▼", "▶", "▲"][i]}</button>`).join("")}</div><div class="touch-actions">${["block", "grab", "light", "heavy", "special", "secondary", "overclock"].map((a, i) => `<button data-touch="${a}">${["BLOCK", "GRAB", "LIGHT", "HEAVY", "SPEC", "ALT", "OC"][i]}</button>`).join("")}</div>`;
+  touch.querySelectorAll<HTMLButtonElement>("button").forEach((b) => {
+    b.onpointerdown = (e) => {
+      e.preventDefault();
+      b.setPointerCapture(e.pointerId);
+      game.input.touch.add(b.dataset.touch!);
+      game.input.touchTaps.add(b.dataset.touch!);
+      audio.unlock();
+    };
+    const release = () => game.input.touch.delete(b.dataset.touch!);
+    b.onpointerup = release;
+    b.onpointercancel = release;
+    b.onlostpointercapture = release;
+  });
+}
+function updateHud() {
+  if (performance.now() > announcementUntil)
+    announcement.classList.remove("visible");
+  if (hud.hidden || performance.now() - lastHud < 50) return;
+  lastHud = performance.now();
+  game.fighters.forEach((f, i) => {
+    document.getElementById(`name${i}`)!.textContent = f.def.name;
+    document.getElementById(`hp${i}`)!.style.width = `${f.hp}%`;
+    document.getElementById(`health${i}`)!.textContent =
+      `${Math.ceil(f.hp)}% INTEGRITY`;
+    document.getElementById(`rounds${i}`)!.textContent = [0, 1]
+      .map((n) => (game.wins[i] > n ? "●" : "○"))
+      .join(" ");
+    document.getElementById(`oc${i}`)!.style.width =
+      `${f.oc > 0 ? f.oc * 20 : f.meter}%`;
+    document.getElementById(`oclabel${i}`)!.textContent =
+      f.disabled > 0
+        ? "SPECIALS OFFLINE"
+        : f.oc > 0
+          ? f.def.overclock
+          : f.meter >= 100
+            ? "OVERCLOCK READY · " + (i === 0 ? "O / RT" : "5 / RT")
+            : "OVERCLOCK";
+  });
+  document.getElementById("timer")!.textContent =
+    game.mode === "training"
+      ? "∞"
+      : String(Math.ceil(game.timer)).padStart(2, "0");
+  document.getElementById("round-number")!.textContent = String(game.round);
+  document.getElementById("arena-label")!.textContent =
+    ARENAS[game.arenaIndex].name +
+    (game.mode === "arcade" ? ` / FIGHT ${game.stage + 1} OF 5` : "");
+  document.getElementById("hazard-status")!.textContent =
+    ARENAS[game.arenaIndex].hazard + " / " + game.hazardState.toUpperCase();
+}
+function announce(title: string, sub = "") {
+  announcement.innerHTML = `<strong>${title}</strong><span>${sub}</span>`;
+  announcement.classList.add("visible");
+  announcementUntil =
+    performance.now() + (game.phase === "roundEnd" ? 2800 : 1500);
+}
+function pause() {
+  if (game.mode === "attract") {
+    home();
+    return;
+  }
+  if (!["fight", "pause"].includes(screen)) return;
+  if (game.paused) {
+    resume();
+    return;
+  }
+  game.paused = true;
+  game.audio.active = false;
+  setScreen(
+    "pause",
+    `<div class="modal"><div class="eyebrow">PROCESS SUSPENDED</div><h2>TAKE A<br><em>BREATHER.</em></h2><p>The robots are reconsidering their life choices.</p>${button("RESUME →", "resume", "primary cta")}${button("CONTROLS & MOVE LIST", "help", "wide")}${button("SETTINGS", "settings", "wide")}${button("RETURN TO TITLE", "home", "wide")}</div>`,
+  );
+}
+function resume() {
+  game.input.clear();
+  game.paused = false;
+  game.audio.active = true;
+  screen = "fight";
+  ui.hidden = true;
+}
+function results(winner: number) {
+  if (game.mode === "attract") {
+    home();
+    return;
+  }
+  hud.hidden = true;
+  touch.hidden = true;
+  announcement.classList.remove("visible");
+  const arcade = game.mode === "arcade",
+    done = arcade && game.stage === 4 && winner === 0,
+    won = winner === 0;
+  const f = game.fighters[Math.max(0, winner)].def;
+  const jokes: Record<FighterId, string> = {
+    voxxy: "One screw falls out. Voxxy files it under “probably optional”.",
+    droid: "ROOT CAUSE: USER ERROR.",
+    biggy: "Reversing… charging… BONK.",
+    richie: "One last tiny bonk. For quality assurance.",
+    microduck: "A small kick. A slow turn. One quack.",
+  };
+  if (f.id === "microduck") {
+    audio.quack();
+    game.stats.quacks++;
+  }
+  setScreen(
+    "results",
+    `${header()}<main class="results-main"><div><div class="eyebrow">${done ? "ARCADE CLEARED" : arcade ? `FIGHT ${game.stage + 1} / 5` : "MATCH COMPLETE"} · ${game.wins[0]} — ${game.wins[1]}</div><h2>${done ? "RUNTIME<br><em>COMPLETE.</em>" : `${f.name}<br><em>WINS.</em>`}</h2><p class="result-joke"><small>POST-MORTEM</small><br>${jokes[f.id]}</p><div class="result-buttons">${button(arcade && won && !done ? "NEXT OPPONENT →" : arcade && !won ? "CONTINUE / RETRY →" : "REMATCH →", arcade && won && !done ? "next" : arcade && !won ? "retry" : "fight", "primary cta")}${button("SELECT MACHINE", "restart-select", "wide")}${button("TITLE SCREEN", "home", "wide")}</div></div><div class="result-card"><img src="${portraits[f.id]}" alt="${f.name}"><dl>${Object.entries(
+      game.stats,
+    )
+      .map(
+        ([k, v]) =>
+          `<div><dt>${({ matches: "MATCHES WON", roundsLost: "ROUNDS LOST", failures: "SYSTEM FAILURES", ringOuts: "RING OUTS", overclocks: "OVERCLOCKS", quacks: "QUACKS", biggyHits: "BIGGY HITS SURVIVED" } as Record<string, string>)[k]}</dt><dd>${v}</dd></div>`,
+      )
+      .join("")}</dl></div></main>${footer()}`,
+  );
+}
+let returnScreen = "home";
+function settings() {
+  if (screen === "fight") pause();
+  returnScreen = screen;
+  const s = audio.settings;
+  setScreen(
+    "settings",
+    `${header()}<div class="modal settings-modal"><div class="eyebrow">CABINET CONFIGURATION</div><h2>YOUR <em>RULES.</em></h2>${(["master", "music", "announcer"] as const).map((k) => `<label>${k.toUpperCase()} VOLUME <input aria-label="${k} volume" data-setting="${k}" type="range" min="0" max="1" step="0.05" value="${s[k]}"></label>`).join("")}<label class="check">REDUCED CAMERA SHAKE <input type="checkbox" data-setting="reducedShake" ${s.reducedShake ? "checked" : ""}></label><label>CPU DIFFICULTY <select data-setting="difficulty"><option value="0" ${s.difficulty === 0 ? "selected" : ""}>Friendly chaos</option><option value="1" ${s.difficulty === 1 ? "selected" : ""}>Standard issue</option><option value="2" ${s.difficulty === 2 ? "selected" : ""}>Production incident</option></select></label><p>Settings are saved on this device.</p>${button("SAVE & BACK →", "close-panel", "primary cta")}</div>`,
+  );
+  ui.querySelectorAll<HTMLInputElement | HTMLSelectElement>(
+    "[data-setting]",
+  ).forEach(
+    (el) =>
+      (el.oninput = () => {
+        const k = el.dataset.setting!;
+        (audio.settings as unknown as Record<string, unknown>)[k] =
+          el instanceof HTMLInputElement && el.type === "checkbox"
+            ? el.checked
+            : Number(el.value);
+        try {
+          localStorage.setItem(
+            "rumble-settings",
+            JSON.stringify(audio.settings),
+          );
+        } catch {}
+        audio.unlock();
+      }),
+  );
+}
+function help() {
+  if (screen === "fight") pause();
+  returnScreen = screen;
+  setScreen(
+    "help",
+    `${header()}<main class="help-main"><div class="eyebrow">READ THIS BEFORE THE INCIDENT</div><h2>FIGHT. CRASH. <em>REBOOT.</em></h2><p>Win two rounds. Empty their integrity bar. Use the warning strip to launch them into a bad day.</p><div class="help-columns"><section><h3>CONTROLS</h3><table><thead><tr><th>ACTION</th><th>PLAYER 1</th><th>PLAYER 2</th><th>GAMEPAD</th></tr></thead><tbody>${[
+      ["Move", "A / D", "← / →", "Stick / D-pad"],
+      ["Jump", "W", "↑", "Y / △"],
+      ["Crouch / low hit", "S + J/K", "↓ + 1/2", "Down + A/B"],
+      ["Light / heavy", "J / K", "1 / 2", "A / B"],
+      ["Special / alternate", "L / I", "3 / 4", "X / LT"],
+      ["Grab", "U", "0", "RB"],
+      ["Block", "Space", "Right Shift", "LB"],
+      ["Overclock", "O", "5", "RT"],
+      ["Pause", "Esc", "Esc", "Start"],
+    ]
+      .map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join("")}</tr>`)
+      .join(
+        "",
+      )}</tbody></table><p>One controller in versus controls Player 2. Two controllers control Players 1 and 2. Tap attacks; hold block. Biggy’s special charges while held.</p></section><section><h3>MEET YOUR BAD DECISIONS</h3>${FIGHTERS.map((f) => `<p><b style="color:${f.color}">${f.name}</b> · ${f.special} / ${f.secondary}<br><small>${f.id === "voxxy" ? "Fast jabs and throws. Grab close, then aim toward a hazard." : f.id === "droid" ? "Long reach. Override nearby hazards; beware the wind-up." : f.id === "biggy" ? "Hold special to build momentum. Alternate braces against knockback." : f.id === "richie" ? "Hop to move. Launch with special. Crouch to play dead and evade jabs." : "Special toggles roller mode. Fast kicks, low friction, very little mass."}</small></p>`).join("")}<p><b>WARNING → ARMED → ACTIVE</b><br>Hazards announce before firing. Block stops most strikes, but throws beat block. Crouch-block stops low attacks.</p></section></div>${button("GOT IT →", "close-panel", "primary cta")}</main>`,
+  );
+}
+function closePanel() {
+  if (game.paused) {
+    screen = "fight";
+    game.paused = false;
+    pause();
+  } else if (returnScreen === "select") select();
+  else if (returnScreen === "stages") stages();
+  else home();
+}
+function credits() {
+  returnScreen = screen;
+  setScreen(
+    "credits",
+    `${header()}<div class="modal"><div class="eyebrow">BUILT AFTER HOURS</div><h2>THE <em>CREW.</em></h2><p>Original arcade game concept by Jan Van Wassenhove.</p><p>Voxxy, Droid, Biggy and venue references: <a href="https://game.devoxx.be/references.html" target="_blank" rel="noopener">Devoxx Robot Games ↗</a></p><p>Richie Mini is inspired by <a href="https://github.com/pollen-robotics/reachy_mini" target="_blank" rel="noopener">Reachy Mini</a>. Microduck is inspired by <a href="https://pollen-robotics.com/microduck/" target="_blank" rel="noopener">Pollen Robotics Microduck</a>.</p><p>Original procedural 3D models, stylised venue scenes and synthesised music. Three.js · Rapier · Vite. Independent fan game; no affiliation or endorsement implied.</p>${button("BACK →", "close-panel", "primary cta")}</div>`,
+  );
+}
+function intro() {
+  home();
+  screen = "intro";
+  let frame = 0;
+  const lines = [
+    "KINEPOLIS, ANTWERP · 02:14 AM",
+    "THE CONFERENCE IS OVER.",
+    "SOMEONE FORGOT TO SHUT DOWN THE ROBOTS.",
+    "VOXXY. DROID. BIGGY.",
+    "RICHIE MINI. MICRODUCK.",
+    "FIVE ROBOTS. ZERO SUPERVISION.",
+  ];
+  const show = () => {
+    game.cinematic = frame;
+    ui.innerHTML = `<div class="cinematic"><div class="cinema-top">DEVOXX / AFTER HOURS</div><h2>${lines[Math.min(frame, 5)]}</h2>${button("SKIP INTRO →", "home", "small")}</div>`;
+    if (frame === 4) audio.quack();
+    if (frame++ >= 6) {
+      clearInterval(cinematicTimer);
+      home();
+    }
+  };
+  show();
+  cinematicTimer = setInterval(show, 1800);
+}
+ui.addEventListener("click", (e) => {
+  const el = (e.target as HTMLElement).closest<HTMLElement>("button");
+  if (!el || el.hasAttribute("disabled")) return;
+  audio.unlock();
+  if (el.dataset.fighter) {
+    if (selectPlayer === 0) selected = el.dataset.fighter as FighterId;
+    else opponent = el.dataset.fighter as FighterId;
+    audio.tone(420, 0.08, "sine", 0.12, 200);
+    select();
+    return;
+  }
+  if (el.dataset.arena) {
+    arena = Number(el.dataset.arena);
+    game.setArena(arena);
+    stages();
+    return;
+  }
+  const a = el.dataset.action;
+  switch (a) {
+    case "home":
+      home();
+      break;
+    case "arcade":
+    case "versus":
+    case "chaos":
+    case "training":
+      mode = a;
+      selectPlayer = 0;
+      arena = 0;
+      select();
+      break;
+    case "select":
+      select();
+      break;
+    case "restart-select":
+      selectPlayer = 0;
+      select();
+      break;
+    case "confirm-fighter":
+      if (mode === "versus" && selectPlayer === 0) {
+        selectPlayer = 1;
+        select();
+      } else stages();
+      break;
+    case "fight":
+      launch();
+      break;
+    case "next":
+      screen = "fight";
+      (document.activeElement as HTMLElement)?.blur();
+      ui.hidden = true;
+      hud.hidden = false;
+      touch.hidden = false;
+      game.nextArcade();
+      makeHud();
+      break;
+    case "retry":
+      screen = "fight";
+      (document.activeElement as HTMLElement)?.blur();
+      ui.hidden = true;
+      hud.hidden = false;
+      touch.hidden = false;
+      game.start(
+        mode,
+        selected,
+        game.fighters[1].def.id,
+        game.arenaIndex,
+        false,
+      );
+      makeHud();
+      break;
+    case "pause":
+      pause();
+      break;
+    case "resume":
+      resume();
+      break;
+    case "settings":
+      settings();
+      break;
+    case "help":
+      help();
+      break;
+    case "close-panel":
+      closePanel();
+      break;
+    case "credits":
+      credits();
+      break;
+    case "intro":
+      intro();
+      break;
+  }
+});
+function createPortraits() {
+  const r = new T.WebGLRenderer({
+    alpha: true,
+    antialias: true,
+    preserveDrawingBuffer: true,
+  });
+  r.setSize(360, 400);
+  r.toneMapping = T.ACESFilmicToneMapping;
+  r.toneMappingExposure = 1.4;
+  const s = new T.Scene();
+  s.add(new T.HemisphereLight("#e3edff", "#463329", 3));
+  const l = new T.DirectionalLight("#ffe1c5", 4);
+  l.position.set(3, 6, 6);
+  s.add(l);
+  const c = new T.PerspectiveCamera(35, 0.9, 0.1, 30);
+  for (const f of FIGHTERS) {
+    const m = robot(f);
+    m.root.rotation.y = -0.3;
+    s.add(m.root);
+    const h = f.height;
+    c.position.set(0, h * 0.64, h * 2.1);
+    c.lookAt(0, h * 0.5, 0);
+    r.render(s, c);
+    portraits[f.id] = r.domElement.toDataURL();
+    s.remove(m.root);
+    m.root.traverse((o) => {
+      if (o instanceof T.Mesh) o.geometry.dispose();
+    });
+  }
+  r.dispose();
+}
+async function boot() {
+  try {
+    game = new Game(document.querySelector<HTMLCanvasElement>("#game")!, audio);
+    await game.init();
+    createPortraits();
+    game.input.menu = (dir, activate) => {
+      if (screen === "fight" || screen === "attract") return;
+      const buttons = Array.from(
+        ui.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"),
+      );
+      const focused = buttons.indexOf(
+        document.activeElement as HTMLButtonElement,
+      );
+      if (activate && focused >= 0) buttons[focused].click();
+      else if (dir) {
+        const next =
+          (Math.max(focused, 0) + dir + buttons.length) % buttons.length;
+        buttons[next]?.focus();
+        game.input.lastActivity = performance.now();
+      }
+    };
+    game.onUpdate = updateHud;
+    game.onAnnounce = announce;
+    game.onEnd = results;
+    game.input.paused = pause;
+    game.input.start = () => {
+      audio.unlock();
+      if (screen === "fight" || screen === "pause") pause();
+      else if (screen === "home") {
+        mode = "arcade";
+        selectPlayer = 0;
+        select();
+      } else if (screen === "select") {
+        if (mode === "versus" && selectPlayer === 0) {
+          selectPlayer = 1;
+          select();
+        } else stages();
+      } else if (screen === "stages") launch();
+    };
+    game.onAttract = () => {
+      if (screen !== "home") return;
+      screen = "attract";
+      ui.innerHTML =
+        '<div class="attract-label">LIVE DEMO / AI vs AI<br><strong>PRESS START</strong><small>OR PRESS ANY KEY / TAP TO PLAY</small></div>';
+      hud.hidden = false;
+      mode = "attract";
+      game.start(
+        "attract",
+        FIGHTERS[Math.floor(Math.random() * 5)].id,
+        FIGHTERS[Math.floor(Math.random() * 5)].id,
+        Math.floor(Math.random() * 5),
+      );
+      makeHud();
+    };
+    game.onExitAttract = home;
+    window.addEventListener("blur", () => {
+      if (screen === "fight") pause();
+    });
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden && screen === "fight") pause();
+    });
+    home();
+    if (import.meta.env.DEV)
+      (window as unknown as { rumble: Game }).rumble = game;
+  } catch (e) {
+    console.error(e);
+    ui.innerHTML =
+      '<div class="modal"><h2>BOOT INTERRUPTED</h2><p>The 3D engine could not start. Use a browser with WebGL 2 and hardware acceleration enabled.</p><button onclick="location.reload()">RETRY</button></div>';
+  }
+}
 void boot();
