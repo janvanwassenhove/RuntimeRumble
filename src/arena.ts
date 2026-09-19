@@ -9,12 +9,12 @@ import {ARENAS} from './data';
 import {Kit, plastic, steel, glow, type V3} from './kit';
 import {tex, image} from './textures';
 import {mats, flat, slab, panel, textTex, logoTex, lightbox, escalatorSkin, G, toasterBot, duckDrone, coffeeBot, robotArm, selfDrivingChair, popcornMachine, booth, seat, seatMeshes} from './venue';
-import {Walker, cheeringCrowd, seatedAudience, peopleMaterial} from './people';
+import {Walker, cheeringCrowd, seatedAudience, peopleMaterial, glossMaterial, screenMaterial} from './people';
 
 /** How the scene is lit here: the hall is bright, the auditorium dark with a lit stage. */
 export type Grade = {hemi: number; sun: number; sunColor: number; fog: number; near: number; far: number; env: number};
 const BACK = -5.2, W = 64;
-const shared = new Set<T.Material>([...Object.values(mats), ...Object.values(G), peopleMaterial]);
+const shared = new Set<T.Material>([...Object.values(mats), ...Object.values(G), peopleMaterial, glossMaterial, screenMaterial]);
 
 export class ArenaVisual {
   root = new T.Group();
@@ -95,7 +95,7 @@ export class ArenaVisual {
     // Rope barriers along the front, delegates who never left, and the flipper in the floor.
     for (const x of [-16, -12, 12, 16]) { k.add(new T.CylinderGeometry(.06, .06, 1.4, 16), mats.chrome, this.root, {p: [x, .7, -1.6]}); k.add(new T.CylinderGeometry(.22, .22, .06, 16), mats.chrome, this.root, {p: [x, .03, -1.6]}); }
     for (const x of [-14, 14]) k.add(new T.BoxGeometry(4, .12, .08), flat(0x7a1414, .7), this.root, {p: [x, .8, -1.6]});
-    this.crowd = cheeringCrowd([[-4.6, -3.2], [-4.2, -2.3], [4.6, -3.2], [4.4, -2.4], [-13.6, -2.9], [-14.6, -2.2], [13.4, -3.0], [14.5, -2.3], [-22.6, -2.6], [22.8, -2.8]].map(([x, z]) => ({x, y: 0, z})), 21);
+    this.crowd = cheeringCrowd([[-4.6, -3.3], [-4.0, -2.2], [-5.6, -2.5], [4.6, -3.3], [4.2, -2.3], [5.8, -2.6], [-13.6, -2.9], [-14.7, -2.1], [13.4, -3.0], [14.6, -2.2], [-22.6, -2.6], [22.8, -2.8], [-9, -3.4], [9.2, -3.4]].map(([x, z]) => ({x, y: 0, z})), 21);
     this.root.add(this.crowd.group);
     this.strip(k, 0, mats.laminate);
   }
@@ -133,7 +133,7 @@ export class ArenaVisual {
     k.add(new T.BoxGeometry(4.2, .07, 1.6), mats.brass, this.root, {p: [24, -2.165, -2]}); k.add(new T.BoxGeometry(4, 1.2, 1.4), mats.wood, this.root, {p: [24, -2.8, -2]});
     k.at(22.9, -2.13, -1.95, 0); popcornMachine(k, this.root); k.at();
     [3, 5].forEach((n, j) => { const art = tex(`booth-${n}`); if (!art) return; art.wrapS = art.wrapT = T.ClampToEdgeWrapping; this.T(art); lightbox(this.root, art, 3.6, 2.4, (j ? 1 : -1) * 24, 2.4, -29.8, 0); });
-    this.crowd = cheeringCrowd([[-21.5, -3.4, -1.5], [-23, -3.4, -.5], [21, -3.4, -1], [26.5, -3.4, .2]].map(([x, y, z]) => ({x, y, z})), 31);
+    this.crowd = cheeringCrowd([[-21.5, -3.4, -1.5], [-23, -3.4, -.5], [-25.5, -3.4, 1.2], [21, -3.4, -1], [26.5, -3.4, .2], [19.5, -3.4, 1.4], [-4.5, 0, -3.5], [4.8, 0, -3.5]].map(([x, y, z]) => ({x, y, z})), 31);
     this.root.add(this.crowd.group);
     // The edges are the hazard: a comb plate and warning LEDs mark the top step.
     this.strip(k, 9.5, mats.comb);
@@ -164,6 +164,8 @@ export class ArenaVisual {
       const x = -4 + ((i * 7) % 5) - 2 + (i % 2) * .4, w = new Walker(400 + i, [new T.Vector3(x, 0, -4.5 - (i % 3) * .45), new T.Vector3(x + (i % 2 ? .6 : -.6), 0, 15)]);
       w.speed = 5.2 + (i % 4) * .35; w.restart(0); this.root.add(w.group); this.surge.push(w);
     }
+    this.crowd = cheeringCrowd([[8, 0, -4.2], [9.4, 0, -3.6], [14.5, 0, -4.2], [-12, 0, -4.0], [-13.6, 0, -3.5], [3.5, 0, -4.3]].map(([x, y, z]) => ({x, y, z})), 51);
+    this.root.add(this.crowd.group);
     this.strip(k, -4, null);
   }
 
@@ -199,6 +201,8 @@ export class ArenaVisual {
     for (const s of [-1, 1]) rk.add(new T.BoxGeometry(.14, .1, 1.0), mats.black, r, {p: [s * .8, .6, .05]});
     rk.bake();
     lightbox(r, this.T(textTex('RECLINE', {bg: '#5a1a1a', h: 220, font: 110})), 1.2, .26, 0, 1.1, -.36, 0, false);
+    this.crowd = cheeringCrowd([[-4.8, 0, -2.4], [4.8, 0, -2.4], [-4.8, .6, -4.0], [4.8, .6, -4.0], [-11, 0, -1.6], [11.2, 0, -1.6]].map(([x, y, z]) => ({x, y, z})), 61);
+    this.root.add(this.crowd.group);
   }
 
   // ------------------------------------------------------------------ 04 keynote stage
@@ -239,7 +243,7 @@ export class ArenaVisual {
     lk.add(new T.BoxGeometry(3.1, 1.2, 3.1), mats.black, lift, {p: [0, -.6, 0]});
     for (const s of [-1, 1]) { lk.add(new T.BoxGeometry(3.1, .12, .12), mats.comb, lift, {p: [0, .14, s * 1.5]}); lk.add(new T.BoxGeometry(.12, .12, 3.1), mats.comb, lift, {p: [s * 1.5, .14, 0]}); }
     lk.bake();
-    this.crowd = cheeringCrowd([[-14.5, 0, 1.5], [-15.5, 0, 2.6], [15, 0, 1.2], [16.2, 0, 2.4]].map(([x, y, z]) => ({x, y, z})), 41);
+    this.crowd = cheeringCrowd([[-14.5, 0, 1.5], [-15.5, 0, 2.6], [-13.2, 0, 3.4], [15, 0, 1.2], [16.2, 0, 2.4], [13.6, 0, 3.6]].map(([x, y, z]) => ({x, y, z})), 41);
     this.root.add(this.crowd.group);
   }
 
@@ -276,6 +280,8 @@ export class ArenaVisual {
     for (let s = 0; s < 4; s++) { k.add(new T.BoxGeometry(2, .04, .6), mats.chrome, this.root, {p: [19, .4 + s * .55, BACK + .6]}); for (let j = 0; j < 4; j++) k.add(j % 2 ? new T.CylinderGeometry(.12, .12, .3, 12) : new T.SphereGeometry(.16, 12, 8), j % 2 ? G.orange : mats.chrome, this.root, {p: [18.3 + j * .48, .6 + s * .55, BACK + .6]}); }
     for (const dx of [-1, 1]) k.add(new T.BoxGeometry(.05, 2.3, .6), mats.chrome, this.root, {p: [19 + dx, 1.15, BACK + .6]});
     k.at(-6, .04, -2.8, .8, 1.2); selfDrivingChair(k, this.root); k.at();
+    this.crowd = cheeringCrowd([[-12, 0, -3.2], [12.5, 0, -3.2], [-18.5, 0, -2.6], [18.2, 0, -2.8]].map(([x, y, z]) => ({x, y, z})), 71, ['laptop', 'phone', 'pump', 'clap']);
+    this.root.add(this.crowd.group);
     // The reset pad: a lidar ring in the floor that spins up before it wipes a robot's specials.
     this.strip(k, 0, null);
     k.add(new T.CylinderGeometry(1.5, 1.5, .08, 40), mats.black, this.root, {p: [0, .04, 0]});
@@ -341,7 +347,7 @@ export class ArenaVisual {
       const m = o as T.Mesh;
       if (!m.isMesh) return;
       m.geometry.dispose();
-      for (const x of Array.isArray(m.material) ? m.material : [m.material]) if (!shared.has(x)) own.add(x);
+      for (const x of Array.isArray(m.material) ? m.material : [m.material]) if (!shared.has(x) && !x.userData.shared) own.add(x);
     });
     own.forEach(m => m.dispose());
     this.tmp.forEach(t => t.dispose());

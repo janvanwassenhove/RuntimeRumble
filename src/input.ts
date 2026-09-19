@@ -22,7 +22,7 @@ export class Input {
   /** Keyboard bindings per player, rebound from the settings screen. */
   constructor(public binds: [Bindings, Bindings] = loadKeys()) {
     window.addEventListener("keydown", (e) => {
-      if ((e.target as HTMLElement).matches("input,select,textarea")) return;
+      if ((e.target as HTMLElement).matches?.("input,select,textarea")) return;
       this.lastActivity = performance.now();
       if (
         ["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(

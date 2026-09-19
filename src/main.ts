@@ -34,8 +34,17 @@ const isTouch =
   params.has("touch") ||
   matchMedia("(pointer:coarse)").matches ||
   (navigator.maxTouchPoints > 0 && !matchMedia("(hover:hover)").matches);
-const fx = !isTouch && !params.has("nofx");
+// ?lite drops shadows and pixel density too, for the software renderer the browser tests run on.
+const lite = params.has("lite");
+const fx = !isTouch && !params.has("nofx") && !lite;
 if (isTouch) document.body.classList.add("touch");
+// Safari zooms on a double tap and on two fingers landing at once (a stick and a button):
+// its gesture events and the control layers' touch defaults are cancelled outright.
+for (const ev of ["gesturestart", "gesturechange", "gestureend"])
+  document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
+document.addEventListener("dblclick", (e) => e.preventDefault(), { passive: false });
+for (const ev of ["touchstart", "touchmove", "touchend"])
+  touch.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
 const audio = new AudioEngine(loadSettings());
 let game: Game;
 let screen = "home",
@@ -606,6 +615,7 @@ async function boot() {
       document.querySelector<HTMLCanvasElement>("#game")!,
       audio,
       fx,
+      lite,
     );
     await game.init();
     createPortraits();

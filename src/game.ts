@@ -115,14 +115,16 @@ export class Game {
     public audio: AudioEngine,
     /** Bloom on: off on touch devices and with ?nofx, to keep the frame rate up. */
     public fx = true,
+    /** ?lite: no shadows and one pixel per pixel, for software renderers. */
+    lite = false,
   ) {
     this.renderer = new T.WebGLRenderer({
       canvas,
       antialias: true,
       powerPreference: "high-performance",
     });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, fx ? 1.75 : 1.5));
-    this.renderer.shadowMap.enabled = true;
+    this.renderer.setPixelRatio(lite ? 1 : Math.min(devicePixelRatio, fx ? 1.75 : 1.5));
+    this.renderer.shadowMap.enabled = !lite;
     this.renderer.shadowMap.type = T.PCFSoftShadowMap;
     this.renderer.toneMapping = T.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.15;

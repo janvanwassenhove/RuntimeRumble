@@ -13,12 +13,21 @@
 body {
   margin: 0;
   overflow: hidden;
+  /* No double-tap or pinch zoom on fast taps: iOS ignores user-scalable=no. Menus may still scroll. */
+  touch-action: manipulation;
+  overscroll-behavior: none;
+}
+#game,
+#hud,
+#touch {
+  touch-action: none;
 }
 button,
 a,
 input,
 select {
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 button {
   font: inherit;
@@ -309,7 +318,12 @@ footer {
   letter-spacing: 1.8px;
   color: #8c93a1;
 }
+/* The footer floats over the bottom of a screen; only its own button takes the pointer. */
+footer {
+  pointer-events: none;
+}
 footer button {
+  pointer-events: auto;
   font-size: 9px;
   letter-spacing: 1.5px;
   color: #aab0bb;

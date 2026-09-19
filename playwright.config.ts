@@ -4,11 +4,12 @@ const port = process.env.PORT || "5173";
 export default defineConfig({
   testDir: "./tests/browser",
   // The venue is heavy for a software renderer: give each test room to breathe.
-  timeout: 150000,
+  timeout: 240000,
   workers: 1,
   use: {
     baseURL: `http://127.0.0.1:${port}`,
-    viewport: { width: 1440, height: 900 },
+    // Fewer pixels for the software renderer; the layout is the desktop one either way.
+    viewport: { width: 1100, height: 690 },
     launchOptions: {
       args: [
         "--no-sandbox",

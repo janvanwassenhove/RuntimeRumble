@@ -1,10 +1,26 @@
-// The Devoxx crowd: procedural conference-goers. Every person is vertex-coloured
-// geometry on one shared material, so a seated audience of a hundred is a single
-// draw call and a walker is five (body plus four limbs that swing).
+// The Devoxx crowd: procedural conference-goers. Every person is vertex-coloured geometry
+// on two shared materials — a matte skin-and-cloth surface with a fabric bump, and a glossy
+// one for eyes, glasses and screens — so a seated audience of a hundred is two draw calls
+// and a fan is a dozen small meshes that move. Proportions are eight heads tall with real
+// shoulders, elbows, knees and hands; faces have eyes, brows, a nose, ears and a mouth that
+// opens when they shout. The fans behind a fight cheer the way developers cheer: fist pumps,
+// jumping, filming on a phone, live-blogging on a laptop, waving a sign, a foam finger.
 import * as T from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 
-export const peopleMaterial = new T.MeshStandardMaterial({vertexColors: true, roughness: .88, metalness: 0});
+// A fine grain shared by skin and cloth: weave, pores and knit catch the light.
+const grain = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d')!, img = g.createImageData(256, 256);
+  for (let i = 0; i < img.data.length; i += 4) { const v = 118 + Math.random() * 20 | 0; img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 255; }
+  g.putImageData(img, 0, 0);
+  const t = new T.CanvasTexture(c); t.wrapS = t.wrapT = T.RepeatWrapping; t.repeat.set(9, 9);
+  return t;
+})();
+export const peopleMaterial = new T.MeshPhysicalMaterial({vertexColors: true, roughness: .74, metalness: 0, sheen: .35, sheenRoughness: .75, sheenColor: new T.Color(0x7a6a60), bumpMap: grain, bumpScale: .006});
+export const glossMaterial = new T.MeshPhysicalMaterial({vertexColors: true, roughness: .1, metalness: 0, clearcoat: 1, clearcoatRoughness: .08, envMapIntensity: 1.4});
+export const screenMaterial = new T.MeshStandardMaterial({color: 0x9fc8ff, emissive: 0xbfe0ff, emissiveIntensity: 1.3, roughness: .3});
+for (const m of [peopleMaterial, glossMaterial, screenMaterial]) m.userData.shared = true;
 
 // Deterministic per-person variety.
 export function rng(seed: number) {
@@ -13,16 +29,18 @@ export function rng(seed: number) {
 }
 const pick = <X,>(r: () => number, xs: X[]) => xs[Math.floor(r() * xs.length)];
 
-const SKIN = [0xf1c9a5, 0xe0ac86, 0xc68a5e, 0x9c6a43, 0x6b4630, 0x4a3122, 0xf6d7bd];
-const HAIR = [0x2b1d14, 0x1a1412, 0x5a3a22, 0x8a5a2a, 0xc9a36a, 0x6d6d6d, 0xb03a2a, 0xe8e2d6];
-const TOPS = [0x2b2f3a, 0x1c1c1e, 0x3b4a7a, 0x7a2a2a, 0x2f6b4f, 0x4a4a4a, 0xf0752a, 0x8a3fa8, 0x2a6a8a, 0xd8d0c0, 0x5a7a2a, 0x223344];
-const PANTS = [0x2c3e6b, 0x1d2a4a, 0x2a2a2a, 0x6b5a45, 0x3a3a48, 0x8a8478];
-const SHOES = [0x111111, 0xf4f4f4, 0x4a3a2a, 0x2a3a6a, 0x8a2a2a];
-const SHIRT_TEXTS = ['JAVA', 'DEVOXX', 'I ♥ JVM', 'KOTLIN', '</>', '☕ > 🛌', 'null', 'git blame', 'HELLO\nWORLD', 'JUG', 'it works\non my machine', '42'];
+const SKIN = [0xf1c9a5, 0xe0ac86, 0xc68a5e, 0x9c6a43, 0x6b4630, 0x4a3122, 0xf6d7bd, 0xd9a07a];
+const HAIR = [0x2b1d14, 0x1a1412, 0x5a3a22, 0x8a5a2a, 0xc9a36a, 0x6d6d6d, 0xb03a2a, 0xe8e2d6, 0x3a2a4a];
+const EYES = [0x3a2414, 0x2a4a6a, 0x4a6a3a, 0x1c1c1c, 0x6a4a2a];
+const TOPS = [0x2b2f3a, 0x1c1c1e, 0x3b4a7a, 0x7a2a2a, 0x2f6b4f, 0x4a4a4a, 0xf0752a, 0x8a3fa8, 0x2a6a8a, 0xd8d0c0, 0x5a7a2a, 0x223344, 0x111111, 0xc8231f];
+const PANTS = [0x2c3e6b, 0x1d2a4a, 0x2a2a2a, 0x6b5a45, 0x3a3a48, 0x8a8478, 0x1a2a3a];
+const SHOES = [0x111111, 0xf4f4f4, 0x4a3a2a, 0x2a3a6a, 0x8a2a2a, 0xe8e8e8];
+const SHIRT_TEXTS = ['JAVA', 'DEVOXX', 'I ♥ JVM', 'KOTLIN', '</>', '☕ > 🛌', 'null', 'git blame', 'HELLO\nWORLD', 'JUG', 'it works\non my machine', '42', 'sudo', 'NaN', '#!/bin/sh'];
+const SIGNS = ['git push\n--force', 'SUDO WIN', 'I ♥ ROBOTS', 'BONK!', '404\nMERCY NOT FOUND', 'while(true)\n  cheer();', 'PR APPROVED', 'NO TESTS\nNO MERCY', 'TEAM\nRICHIE', 'VOXXY > *', 'quack.', 'CTRL+ALT+\nDEFEAT', 'SEGFAULT\nHIM', 'DROID\nHAS ROOT', 'BIGGY\nIS A FEATURE', 'ship it'];
 
-function tint(geo: T.BufferGeometry, color: number) {
+function tint(geo: T.BufferGeometry, color: number, noise = .04) {
   const c = new T.Color(color), n = geo.attributes.position.count, arr = new Float32Array(n * 3);
-  for (let i = 0; i < n; i++) { arr[i * 3] = c.r; arr[i * 3 + 1] = c.g; arr[i * 3 + 2] = c.b; }
+  for (let i = 0; i < n; i++) { const k = 1 + (Math.random() - .5) * noise; arr[i * 3] = c.r * k; arr[i * 3 + 1] = c.g * k; arr[i * 3 + 2] = c.b * k; }
   geo.setAttribute('color', new T.BufferAttribute(arr, 3));
   return geo;
 }
@@ -32,9 +50,13 @@ function at(geo: T.BufferGeometry, x: number, y: number, z: number, rx = 0, ry =
   return geo.applyMatrix4(M);
 }
 const box = (w: number, h: number, d: number) => new T.BoxGeometry(w, h, d);
-const ball = (r: number) => new T.SphereGeometry(r, 10, 8);
-const capsule = (r: number, len: number) => new T.CapsuleGeometry(r, len, 3, 8);
-const tube = (r: number, len: number) => new T.CylinderGeometry(r, r, len, 8);
+const ball = (r: number, d = 14) => new T.SphereGeometry(r, d, Math.max(6, d - 4));
+const capsule = (r: number, len: number) => new T.CapsuleGeometry(r, len, 4, 12);
+const tube = (r: number, len: number) => new T.CylinderGeometry(r, r, len, 10);
+const merge = (parts: T.BufferGeometry[]) => mergeGeometries(parts.map(g => g.index ? g.toNonIndexed() : g), false)!;
+/** Matte and glossy geometry for one person, kept apart so each goes to its material. */
+type Parts = {m: T.BufferGeometry[]; g: T.BufferGeometry[]};
+const parts = (): Parts => ({m: [], g: []});
 
 export type Spec = ReturnType<typeof spec>;
 export function spec(seed: number) {
@@ -42,81 +64,147 @@ export function spec(seed: number) {
   const hoodie = r() < .45;
   return {
     r, seed,
-    skin: pick(r, SKIN), hair: pick(r, HAIR), top: pick(r, TOPS), pants: pick(r, PANTS), shoes: pick(r, SHOES),
-    hoodie, hood: hoodie && r() < .3,
-    hairStyle: pick(r, ['short', 'short', 'short', 'long', 'bun', 'bald', 'ponytail', 'curly']),
-    glasses: r() < .45, beard: r() < .3, cap: r() < .12, backpack: r() < .4, badge: r() < .85,
-    coffee: r() < .35, laptop: r() < .18, phone: r() < .25,
+    skin: pick(r, SKIN), hair: pick(r, HAIR), eyes: pick(r, EYES), top: pick(r, TOPS), pants: pick(r, PANTS), shoes: pick(r, SHOES),
+    hoodie, hood: hoodie && r() < .3, sleeves: hoodie || r() < .4,
+    hairStyle: pick(r, ['short', 'short', 'fade', 'long', 'bun', 'bald', 'ponytail', 'curly', 'quiff']),
+    glasses: r() < .45, beard: r() < .3, cap: r() < .12, backpack: r() < .35, badge: r() < .85,
+    coffee: r() < .3, laptop: r() < .15, phone: r() < .25,
     text: r() < .5 ? pick(r, SHIRT_TEXTS) : null,
     height: .92 + r() * .16, wide: .9 + r() * .25,
   };
 }
 
-// Limb geometry hangs from its pivot at the origin along -Y, so a walker can rotate it
-// at the hip or shoulder and a seated pose can bake the same limb at an angle.
-function legGeo(s: Spec, side: number, kneeBend = 0) {
-  // Thigh hangs from the hip; the shin and shoe hang from the knee, bent by kneeBend so a
-  // seated pose can fold the leg instead of sticking it straight out.
-  const shin = mergeGeometries([
-    tint(at(capsule(.085 * s.wide, .3), 0, -.22, 0), s.pants),
-    tint(at(box(.17, .1, .3), side * .01, -.46, .05), s.shoes),
-  ], false)!;
-  at(shin, 0, -.47, 0, kneeBend);
-  return mergeGeometries([tint(at(capsule(.095 * s.wide, .3), 0, -.24, 0), s.pants), shin], false)!;
-}
-function armGeo(s: Spec, side: number) {
-  const sleeve = s.hoodie || s.r() < .5;
-  const parts = [
-    tint(at(capsule(.065, .56), 0, -.33, 0), sleeve ? s.top : s.skin),
-    tint(at(ball(.062), 0, -.66, 0), s.skin),
-  ];
-  if (!sleeve) parts.push(tint(at(capsule(.075, .16), 0, -.1, 0), s.top));
-  if (s.coffee && side > 0) { parts.push(tint(at(tube(.045, .12), 0, -.7, .07), 0xf2eee4)); parts.push(tint(at(tube(.048, .02), 0, -.63, .07), 0x6a3a2a)); }
-  if (s.laptop && side < 0) parts.push(tint(at(box(.04, .26, .36), -.09, -.55, .05), 0x9a9a9a));
-  if (s.phone && side < 0 && !s.laptop) parts.push(tint(at(box(.02, .14, .07), -.02, -.72, .06), 0x111111));
-  return mergeGeometries(parts, false)!;
-}
-function bodyGeo(s: Spec) {
-  const p: T.BufferGeometry[] = [];
-  const w = s.wide;
-  p.push(tint(at(box(.36 * w, .2, .24), 0, 1.08, 0), s.pants));
-  p.push(tint(at(capsule(.2 * w, .48), 0, 1.5, 0, 0, 0, 0, 1.05, 1, .7), s.top));
-  p.push(tint(at(tube(.055, .12), 0, 1.86, 0), s.skin));
-  p.push(tint(at(ball(.17), 0, 2.06, 0, 0, 0, 0, 1, 1.08, 1), s.skin));
-  p.push(tint(at(ball(.02), .06, 2.08, .16), 0x1a1210)); p.push(tint(at(ball(.02), -.06, 2.08, .16), 0x1a1210));
-  if (s.hairStyle !== 'bald' && !s.hood) {
-    p.push(tint(at(ball(.178), 0, 2.1, -.02, 0, 0, 0, 1, .95, 1), s.hair));
-    if (s.hairStyle === 'long') p.push(tint(at(box(.3, .34, .16), 0, 1.92, -.14), s.hair));
-    if (s.hairStyle === 'bun') p.push(tint(at(ball(.07), 0, 2.27, -.1), s.hair));
-    if (s.hairStyle === 'ponytail') p.push(tint(at(capsule(.05, .22), 0, 1.95, -.2, .3), s.hair));
-    if (s.hairStyle === 'curly') p.push(tint(at(ball(.2), 0, 2.13, -.03, 0, 0, 0, 1.05, .95, 1.05), s.hair));
-  }
-  if (s.hood) p.push(tint(at(ball(.2), 0, 2.08, -.06, 0, 0, 0, 1.05, 1.05, .9), s.top));
-  if (s.hoodie) p.push(tint(at(box(.1, .08, .06), 0, 1.72, .14), 0xe8e0d0)); // drawstrings
-  if (s.beard) p.push(tint(at(ball(.1), 0, 1.97, .09, 0, 0, 0, 1, .6, .7), s.hair));
-  if (s.glasses) { for (const x of [-.06, .06]) p.push(tint(at(new T.TorusGeometry(.045, .008, 6, 12), x, 2.07, .16), 0x1a1a1a)); p.push(tint(at(box(.03, .008, .008), 0, 2.07, .165), 0x1a1a1a)); }
-  if (s.cap) { p.push(tint(at(tube(.18, .09), 0, 2.2, 0), s.top)); p.push(tint(at(box(.2, .02, .16), 0, 2.16, .2), s.top)); }
-  if (s.backpack) p.push(tint(at(box(.32 * w, .42, .16), 0, 1.5, -.24), pick(s.r, [0x1c1c1c, 0x7a2a2a, 0x2a4a7a, 0x3a5a2a])));
-  if (s.badge) {
-    for (const x of [-.09, .09]) p.push(tint(at(box(.015, .42, .015), x, 1.62, .15, .02), 0xf0752a));
-    p.push(tint(at(box(.19, .25, .02), 0, 1.36, .155), 0xf7f4ec)); p.push(tint(at(box(.19, .05, .022), 0, 1.46, .156), 0xf0752a));
-  }
-  return mergeGeometries(p, false)!;
-}
+// Landmarks, in metres at scale 1: eight heads tall, the head centre at 2.06.
+const HIP = 1.05, SHOULDER = 1.78, NECK = 1.9, HEAD = 2.06, ELBOW = .3, HAND = .34;
 
+/** Thigh from the hip, shin and shoe from the knee, bent by `knee` for a seated pose. */
+export function legGeo(s: Spec, side: number, knee = 0) {
+  const shin = merge([
+    tint(at(capsule(.08 * s.wide, .3), 0, -.22, 0), s.pants),
+    tint(at(ball(.075 * s.wide), 0, -.04, 0), s.pants),                         // the knee
+    tint(at(ball(.045), 0, -.42, .01), s.skin, .02),                              // an ankle
+    tint(at(box(.15, .08, .3), side * .01, -.47, .05), s.shoes),
+    tint(at(ball(.075), side * .01, -.47, .2, 0, 0, 0, 1, .9, .8), s.shoes),     // the toe
+    tint(at(box(.16, .025, .32), side * .01, -.505, .05), 0x1a1a1a, .01),         // the sole
+  ]);
+  at(shin, 0, -.47, 0, knee);
+  return merge([tint(at(capsule(.095 * s.wide, .3), 0, -.24, 0), s.pants), shin]);
+}
+/** Shoulder to elbow. Sleeves, or skin below a T-shirt's cuff. */
+export function upperArmGeo(s: Spec, side: number) {
+  const p = [tint(at(capsule(.062, .22), 0, -.16, 0), s.sleeves ? s.top : s.skin, s.sleeves ? .05 : .02), tint(at(ball(.075), side * .01, .0, 0), s.top)];
+  if (!s.sleeves) p.push(tint(at(capsule(.075, .1), 0, -.07, 0), s.top));
+  return merge(p);
+}
+/** Elbow to fingertips, with a hand: palm, fingers, thumb. `prop` is what the hand carries. */
+export function forearmGeo(s: Spec, side: number, prop: 'coffee' | 'laptop' | 'phone' | null = null) {
+  const p = [
+    tint(at(ball(.058), 0, 0, 0), s.sleeves ? s.top : s.skin, .02),
+    tint(at(capsule(.052, .24), 0, -.17, 0), s.sleeves ? s.top : s.skin, s.sleeves ? .05 : .02),
+    tint(at(box(.07, .085, .03), 0, -.36, .0), s.skin, .02),
+    tint(at(ball(.036), 0, -.415, 0, 0, 0, 0, 1, .85, .6), s.skin, .02),
+    tint(at(ball(.017), side * .042, -.35, .015), s.skin, .02),
+  ];
+  if (prop === 'coffee') { p.push(tint(at(tube(.045, .12), 0, -.4, .06), 0xf2eee4, .01)); p.push(tint(at(tube(.048, .02), 0, -.33, .06), 0x6a3a2a)); }
+  if (prop === 'laptop') p.push(tint(at(box(.04, .26, .36), -side * .09, -.25, .05), 0x9a9a9a, .01));
+  if (prop === 'phone') p.push(tint(at(box(.02, .14, .07), -side * .02, -.42, .06), 0x111111, .01));
+  return merge(p);
+}
+/** A whole arm hanging from the shoulder, for anyone who does not need an elbow. */
+export function armGeo(s: Spec, side: number, prop: 'coffee' | 'laptop' | 'phone' | null = null) {
+  return merge([upperArmGeo(s, side), at(forearmGeo(s, side, prop), 0, -ELBOW, 0)]);
+}
+/** Hips to neck: trousers, top, shoulders, hoodie and lanyard. No head, no limbs. */
+export function torsoParts(s: Spec) {
+  const o = parts(), w = s.wide, m = o.m;
+  m.push(tint(at(capsule(.19 * w, .12), 0, HIP + .04, 0, 0, 0, 0, 1, .6, .72), s.pants));                    // hips
+  m.push(tint(at(box(.34 * w, .04, .22), 0, HIP + .14, 0), 0x2a2420, .01));                                 // a belt
+  m.push(tint(at(capsule(.2 * w, .46), 0, HIP + .45, 0, 0, 0, 0, 1.08, 1, .72), s.top));                    // the torso
+  m.push(tint(at(ball(.22 * w), 0, SHOULDER - .05, 0, 0, 0, 0, 1.25, .5, .78), s.top));                       // shoulders
+  m.push(tint(at(tube(.055, .13), 0, NECK - .04, 0), s.skin, .02));
+  m.push(tint(at(new T.TorusGeometry(.075, .018, 8, 20), 0, SHOULDER + .06, .01, Math.PI / 2), s.top));       // the collar
+  if (s.hood) m.push(tint(at(ball(.2), 0, HEAD + .02, -.06, 0, 0, 0, 1.05, 1.05, .9), s.top));
+  else if (s.hoodie) m.push(tint(at(ball(.16), 0, SHOULDER - .02, -.1, 0, 0, 0, 1.2, .5, .8), s.top));      // the hood, down
+  if (s.hoodie) { m.push(tint(at(box(.26 * w, .12, .02), 0, HIP + .3, .16), s.top)); for (const x of [-.03, .03]) m.push(tint(at(tube(.006, .16), x, SHOULDER - .1, .16), 0xe8e0d0)); }
+  if (s.backpack) {
+    const c = pick(s.r, [0x1c1c1c, 0x7a2a2a, 0x2a4a7a, 0x3a5a2a]);
+    m.push(tint(at(box(.32 * w, .42, .16), 0, HIP + .45, -.24), c)); for (const x of [-.11, .11]) m.push(tint(at(box(.05, .36, .02), x, HIP + .55, .15), c));
+  }
+  if (s.badge) {
+    for (const x of [-.09, .09]) m.push(tint(at(box(.012, .4, .012), x, SHOULDER - .17, .155, .02), 0xf0752a, .01));
+    m.push(tint(at(box(.19, .25, .02), 0, HIP + .31, .16), 0xf7f4ec, .01)); m.push(tint(at(box(.19, .05, .022), 0, HIP + .41, .161), 0xf0752a, .01));
+    m.push(tint(at(box(.12, .012, .023), 0, HIP + .33, .162), 0x333333, .01)); m.push(tint(at(box(.08, .012, .023), 0, HIP + .29, .162), 0x777777, .01));
+  }
+  return o;
+}
+/** The head, built around the neck pivot at y=0 so a fan can nod and turn it. `mouth` is left off for the fans, who animate one. */
+export function headParts(s: Spec, mouth = true) {
+  const o = parts(), m = o.m, g = o.g, y0 = NECK, Y = (y: number) => y - y0;
+  m.push(tint(at(ball(.17, 18), 0, Y(HEAD), 0, 0, 0, 0, 1, 1.1, 1), s.skin, .025));
+  m.push(tint(at(ball(.12), 0, Y(HEAD - .1), .02, 0, 0, 0, 1.1, .8, 1), s.skin, .025));                        // the jaw
+  m.push(tint(at(ball(.026), 0, Y(HEAD - .02), .17, 0, 0, 0, .8, 1.2, 1), s.skin, .02));                       // a nose
+  for (const x of [-1, 1]) {
+    m.push(tint(at(ball(.035), x * .168, Y(HEAD - .01), 0, 0, 0, 0, .5, 1, .7), s.skin, .02));                   // ears
+    m.push(tint(at(box(.055, .012, .018), x * .06, Y(HEAD + .06), .152, 0, 0, x * -.15), s.hair));              // brows
+    g.push(tint(at(ball(.026, 10), x * .06, Y(HEAD + .02), .148), 0xf4f2ee, 0));                                // eyes
+    g.push(tint(at(ball(.013, 8), x * .06, Y(HEAD + .02), .167), s.eyes, 0));
+    g.push(tint(at(ball(.006, 6), x * .06, Y(HEAD + .02), .177), 0x050505, 0));
+  }
+  if (mouth) m.push(tint(at(box(.05, .012, .012), 0, Y(HEAD - .09), .14), 0x7a3a3a, .01));
+  if (s.hairStyle !== 'bald' && !s.hood && !s.cap) {
+    m.push(tint(at(ball(.178, 18), 0, Y(HEAD + .04), -.02, 0, 0, 0, 1, .95, 1), s.hair));
+    if (s.hairStyle === 'fade') m.push(tint(at(ball(.16), 0, Y(HEAD + .09), -.01, 0, 0, 0, 1, .8, 1), s.hair));
+    if (s.hairStyle === 'long') m.push(tint(at(box(.3, .34, .16), 0, Y(HEAD - .14), -.14), s.hair));
+    if (s.hairStyle === 'bun') m.push(tint(at(ball(.07), 0, Y(HEAD + .21), -.1), s.hair));
+    if (s.hairStyle === 'ponytail') m.push(tint(at(capsule(.05, .22), 0, Y(HEAD - .11), -.2, .3), s.hair));
+    if (s.hairStyle === 'curly') for (let i = 0; i < 9; i++) { const a = i * .7; m.push(tint(at(ball(.07, 8), Math.sin(a) * .13, Y(HEAD + .08) + Math.cos(a * 1.3) * .06, Math.cos(a) * .11 - .03), s.hair)); }
+    if (s.hairStyle === 'quiff') m.push(tint(at(ball(.09), 0, Y(HEAD + .2), .08, .5, 0, 0, 1.2, .6, 1), s.hair));
+  } else if (s.hairStyle === 'bald' && !s.cap && !s.hood) m.push(tint(at(ball(.05), 0, Y(HEAD + .05), -.16, 0, 0, 0, 1.6, .6, .7), s.hair));
+  if (s.beard) m.push(tint(at(ball(.1), 0, Y(HEAD - .09), .09, 0, 0, 0, 1, .6, .7), s.hair));
+  if (s.glasses) {
+    for (const x of [-.06, .06]) g.push(tint(at(new T.TorusGeometry(.04, .006, 6, 14), x, Y(HEAD + .02), .165), 0x1a1a1a, 0));
+    g.push(tint(at(box(.03, .006, .006), 0, Y(HEAD + .02), .17), 0x1a1a1a, 0));
+    for (const x of [-1, 1]) g.push(tint(at(box(.006, .006, .16), x * .1, Y(HEAD + .03), .08), 0x1a1a1a, 0));
+  }
+  if (s.cap) { m.push(tint(at(ball(.18), 0, Y(HEAD + .04), 0, 0, 0, 0, 1, .7, 1), s.top)); m.push(tint(at(box(.2, .015, .16), 0, Y(HEAD + .1), .2), s.top)); }
+  return o;
+}
+/** A whole standing person as static geometry, limbs posed by the caller's angles. */
+function personParts(s: Spec, pose: {armX: [number, number]; armZ?: [number, number]; foreX?: [number, number]; legX?: number; knee?: number} = {armX: [0, 0]}) {
+  const o = parts(), t = torsoParts(s), h = headParts(s);
+  o.m.push(...t.m, ...h.m.map(g => at(g, 0, NECK, 0))); o.g.push(...h.g.map(g => at(g, 0, NECK, 0)));
+  [-1, 1].forEach((side, i) => {
+    const fore = at(forearmGeo(s, side, i && s.coffee ? 'coffee' : !i && s.laptop ? 'laptop' : !i && s.phone ? 'phone' : null), 0, -ELBOW, 0, pose.foreX?.[i] ?? 0);
+    o.m.push(at(merge([upperArmGeo(s, side), fore]), side * .27 * s.wide, SHOULDER, 0, pose.armX[i], 0, pose.armZ?.[i] ?? 0));
+    o.m.push(at(legGeo(s, side, pose.knee ?? 0), side * .11, HIP, 0, pose.legX ?? 0));
+  });
+  return o;
+}
 const textures = new Map<string, T.Material>();
-function shirtMaterial(text: string) {
-  let m = textures.get(text);
+function textMaterial(text: string, fg = '#ffffff', bg: string | null = null, size = 64) {
+  const key = text + fg + bg;
+  let m = textures.get(key);
   if (m) return m;
   const c = document.createElement('canvas'); c.width = c.height = 256;
   const g = c.getContext('2d')!;
-  g.fillStyle = '#ffffff'; g.textAlign = 'center'; g.textBaseline = 'middle';
-  const lines = text.split('\n'); g.font = `bold ${lines.length > 1 ? 44 : text.length > 6 ? 40 : 64}px Arial`;
+  if (bg) { g.fillStyle = bg; g.fillRect(0, 0, 256, 256); }
+  g.fillStyle = fg; g.textAlign = 'center'; g.textBaseline = 'middle';
+  const lines = text.split('\n'); g.font = `bold ${lines.length > 1 ? Math.min(size, 44) : text.length > 6 ? Math.min(size, 40) : size}px Arial`;
   lines.forEach((l, i) => g.fillText(l, 128, 128 + (i - (lines.length - 1) / 2) * 52, 236));
   const tex = new T.CanvasTexture(c); tex.colorSpace = T.SRGBColorSpace;
-  m = new T.MeshBasicMaterial({map: tex, transparent: true, depthWrite: false});
-  textures.set(text, m);
+  m = new T.MeshBasicMaterial({map: tex, transparent: !bg, depthWrite: !!bg, side: T.DoubleSide});
+  m.userData.shared = true;
+  textures.set(key, m);
   return m;
+}
+const shirtMaterial = (text: string) => textMaterial(text);
+function meshes(o: Parts, parent: T.Object3D, shadows = true) {
+  const out: T.Mesh[] = [];
+  for (const [list, mat] of [[o.m, peopleMaterial], [o.g, glossMaterial]] as const) {
+    if (!list.length) continue;
+    const q = new T.Mesh(merge(list), mat); q.castShadow = shadows; q.receiveShadow = shadows; parent.add(q); out.push(q);
+  }
+  return out;
 }
 
 /** A person who walks between waypoints, with a walk cycle and the odd pause. */
@@ -130,16 +218,12 @@ export class Walker {
   private pause = 0;
   private yaw = 0;
   constructor(seed: number, public waypoints: T.Vector3[]) {
-    const s = spec(seed);
-    const body = new T.Mesh(bodyGeo(s), peopleMaterial);
-    body.castShadow = true;
-    this.group.add(body);
-    if (s.text && !s.hoodie) {
-      const t = new T.Mesh(new T.PlaneGeometry(.28, .28), shirtMaterial(s.text));
-      t.position.set(0, 1.58, .148); body.add(t);
-    }
+    const s = spec(seed), o = parts(), t = torsoParts(s), h = headParts(s);
+    o.m.push(...t.m, ...h.m.map(g => at(g, 0, NECK, 0))); o.g.push(...h.g.map(g => at(g, 0, NECK, 0)));
+    const [body] = meshes(o, this.group);
+    if (s.text && !s.hoodie) { const q = new T.Mesh(new T.PlaneGeometry(.28, .28), shirtMaterial(s.text)); q.position.set(0, HIP + .53, .155); body.add(q); }
     const limb = (geo: T.BufferGeometry, x: number, y: number) => { const m = new T.Mesh(geo, peopleMaterial); m.position.set(x, y, 0); m.castShadow = true; this.group.add(m); return m; };
-    this.limbs = [limb(armGeo(s, -1), -.27 * s.wide, 1.78), limb(armGeo(s, 1), .27 * s.wide, 1.78), limb(legGeo(s, -1), -.11, 1.05), limb(legGeo(s, 1), .11, 1.05)];
+    this.limbs = [limb(armGeo(s, -1, s.laptop ? 'laptop' : s.phone ? 'phone' : null), -.27 * s.wide, SHOULDER), limb(armGeo(s, 1, s.coffee ? 'coffee' : null), .27 * s.wide, SHOULDER), limb(legGeo(s, -1), -.11, HIP), limb(legGeo(s, 1), .11, HIP)];
     this.group.scale.setScalar(s.height);
     this.speed = 1.1 + s.r() * .9;
     this.wp = Math.floor(s.r() * waypoints.length);
@@ -182,222 +266,136 @@ export class Walker {
   }
 }
 
-/** One merged geometry for a whole seated audience: rows of people on cinema seats. */
+/** One merged pair of meshes for a whole seated audience: rows of people on cinema seats. */
 export function seatedAudience(seats: {x: number; y: number; z: number}[], seed = 7) {
-  const r = rng(seed), parts: T.BufferGeometry[] = [];
+  const r = rng(seed), all = parts();
   seats.forEach((seat, i) => {
     if (r() > .62) return; // a keynote never fills the room
-    const s = spec(seed * 977 + i), h = s.height, yaw = (r() - .5) * .3;
-    const bend = Math.PI / 2 - .15;
-    const body = bodyGeo(s), legs = [legGeo(s, -1, bend), legGeo(s, 1, bend)], arms = [armGeo(s, -1), armGeo(s, 1)];
-    // Hips on the seat, thighs forward, shins down, forearms in the lap. Legs and arms are
-    // built hanging, so a rotation about their pivot poses them.
-    at(body, 0, -.53, 0);
-    legs.forEach((l, k) => { at(l, (k ? .11 : -.11), .55, 0, -bend); });
-    arms.forEach((a, k) => { at(a, (k ? .27 : -.27) * s.wide, 1.23, 0, -.9, 0, (k ? -.15 : .15)); });
-    const g = mergeGeometries([body, ...legs, ...arms], false)!;
-    at(g, seat.x, seat.y - .45, seat.z, 0, yaw, 0, h); // seat.y is the cushion top
-    parts.push(g);
+    const s = spec(seed * 977 + i), h = s.height, yaw = (r() - .5) * .3, bend = Math.PI / 2 - .15;
+    // Hips on the seat, thighs forward, shins down, forearms in the lap; a few with their arms up.
+    const up = r() < .2;
+    const o = personParts(s, {armX: up ? [-2.7, -2.8] : [-.9, -.9], armZ: up ? [.3, -.3] : [.15, -.15], foreX: up ? [-.2, -.2] : [-.9, -.9], legX: -bend, knee: bend});
+    for (const g of [...o.m, ...o.g]) at(g, 0, -.53, 0);
+    for (const list of [o.m, o.g]) for (const g of list) at(g, seat.x, seat.y - .45, seat.z, 0, yaw, 0, h);
+    all.m.push(...o.m); all.g.push(...o.g);
   });
-  const mesh = new T.Mesh(mergeGeometries(parts, false)!, peopleMaterial);
-  mesh.castShadow = true;
-  return mesh;
+  const group = new T.Group();
+  meshes(all, group);
+  return group;
 }
 
-/** The standing crowd at the front. They wait politely — a keynote, not a gig — until
- *  Richie lands on them; then the arms go up and the bouncing starts. Each cluster is two
- *  merged meshes (calm and hyped) so swapping them costs nothing. */
-export function cheeringCrowd(spots: {x: number; y: number; z: number}[], seed = 11) {
-  const group = new T.Group(), clusters: {calm: T.Mesh; hype: T.Mesh}[] = [];
-  const perCluster = Math.max(1, Math.ceil(spots.length / 4));
-  for (let c = 0; c < spots.length; c += perCluster) {
-    const build = (hyped: boolean) => {
-      const r = rng(seed + c), parts: T.BufferGeometry[] = [];
-      spots.slice(c, c + perCluster).forEach((sp, i) => {
-        const s = spec(seed * 131 + c + i), yaw = Math.PI + (r() - .5) * .6;
-        const body = bodyGeo(s), legs = [legGeo(s, -1), legGeo(s, 1)], arms = [armGeo(s, -1), armGeo(s, 1)];
-        legs.forEach((l, k) => at(l, k ? .11 : -.11, 1.05, 0));
-        // Calm: arms down, one maybe holding a phone up to film the stage. Hyped: both up.
-        arms.forEach((a, k) => hyped ? at(a, (k ? .27 : -.27) * s.wide, 1.78, 0, Math.PI - .35, 0, (k ? -.4 : .4))
-          : at(a, (k ? .27 : -.27) * s.wide, 1.78, 0, k && s.phone ? -2.6 : (r() - .5) * .15, 0, (k ? -.08 : .08)));
-        const g = mergeGeometries([body, ...legs, ...arms], false)!;
-        at(g, sp.x, sp.y, sp.z, 0, yaw, 0, s.height);
-        parts.push(g);
-      });
-      const m = new T.Mesh(mergeGeometries(parts, false)!, peopleMaterial);
-      m.castShadow = true;
-      group.add(m);
-      return m;
-    };
-    clusters.push({calm: build(false), hype: build(true)});
-  }
-  return {group, update(t: number, excitement = 0) {
-    const hyped = excitement > .05;
-    clusters.forEach(({calm, hype}, i) => {
-      calm.visible = !hyped; hype.visible = hyped;
-      const m = hyped ? hype : calm;
-      m.position.y = hyped ? Math.abs(Math.sin(t * 2.4 + i)) * (.05 + Math.min(1, excitement) * .25) : 0;
-      m.rotation.z = Math.sin(t * (hyped ? 1.6 : .5) + i * 1.3) * (hyped ? .02 : .006);
-    });
-  }};
-}
-
-// ------------------------------------------------------------------ security
-/** What a guard needs to know about Richie each frame. */
-export type Quarry = {pos: T.Vector3; catchable: boolean; canSee: (eye: T.Vector3, target: T.Vector3) => boolean};
-export type GuardEvent = 'spotted' | 'grabbed' | 'thrown' | 'lost' | null;
-
-/** Kinepolis security: patrols a loop, sees a cone in front, and does not like robots.
- *  Spot Richie and the guard gives chase; get caught and he hoists Richie overhead and
- *  throws him back. The cone is drawn on the floor so the player can plan around it. */
-export class Guard {
+// ------------------------------------------------------------------ the fans
+export type CheerStyle = 'arms' | 'pump' | 'jump' | 'phone' | 'sign' | 'clap' | 'laptop' | 'foam' | 'wave';
+const STYLES: CheerStyle[] = ['arms', 'pump', 'jump', 'phone', 'sign', 'clap', 'laptop', 'foam', 'wave', 'arms', 'jump', 'pump'];
+/**
+ * A standing fan who cheers on their own beat: shoulders, elbows, head and mouth are
+ * separate meshes, and what the hands hold depends on the style — a phone filming, a
+ * laptop to live-blog on, a sign, a foam finger.
+ */
+export class Fan {
   group = new T.Group();
-  state: 'patrol' | 'alert' | 'chase' | 'grab' | 'throw' | 'return' = 'patrol';
-  speed = 1.25;
-  chaseSpeed = 3.3;
-  range = 9;
-  fov = .7; // half-angle, radians
-  /** Where a held Richie sits: overhead. */
-  readonly hands = new T.Vector3();
-  private cone: T.Mesh;
-  private bang: T.Sprite;
-  private limbs: T.Mesh[];
-  private phase = 0;
-  private moving = 0;
-  private wp = 0;
-  private pause = 0;
-  private yaw = 0;
-  private timer = 0;
-  private lastSeen = new T.Vector3();
-  private unseen = 0;
-  private cooldown = 0;
-  private home: T.Vector3;
-  private homeYaw: number;
-
-  constructor(seed: number, public waypoints: T.Vector3[]) {
-    const s = spec(seed);
-    Object.assign(s, {top: 0x15181d, pants: 0x15181d, shoes: 0x111111, hoodie: false, hood: false, cap: true, badge: false, backpack: false, coffee: false, laptop: false, phone: false, text: null, hairStyle: 'short', height: 1.02 + s.r() * .08, wide: 1.05 + s.r() * .15});
-    const body = new T.Mesh(bodyGeo(s), peopleMaterial);
-    body.castShadow = true;
-    this.group.add(body);
-    // SECURITY across the chest and the back, a radio on the shoulder, an earpiece.
-    for (const [z, ry] of [[.148, 0], [-.148, Math.PI]] as const) {
-      const tag = new T.Mesh(new T.PlaneGeometry(.34, .34), shirtMaterial('SECURITY'));
-      tag.position.set(0, 1.56, z); tag.rotation.y = ry; body.add(tag);
-    }
-    const radio = new T.Mesh(new T.BoxGeometry(.07, .12, .05), new T.MeshStandardMaterial({color: 0x222222, roughness: .6}));
-    radio.position.set(.2, 1.78, .12); body.add(radio);
-    const ear = new T.Mesh(new T.SphereGeometry(.025, 6, 6), new T.MeshStandardMaterial({color: 0xdddddd}));
-    ear.position.set(.17, 2.06, .02); body.add(ear);
-    const limb = (geo: T.BufferGeometry, x: number, y: number) => { const m = new T.Mesh(geo, peopleMaterial); m.position.set(x, y, 0); m.castShadow = true; this.group.add(m); return m; };
-    this.limbs = [limb(armGeo(s, -1), -.27 * s.wide, 1.78), limb(armGeo(s, 1), .27 * s.wide, 1.78), limb(legGeo(s, -1), -.11, 1.05), limb(legGeo(s, 1), .11, 1.05)];
-    // The vision cone, flat on the floor, pointing the way the guard faces (+Z).
-    this.cone = new T.Mesh(new T.CircleGeometry(this.range, 28, -Math.PI / 2 - this.fov, this.fov * 2),
-      new T.MeshBasicMaterial({color: 0xffd25c, transparent: true, opacity: .16, depthWrite: false, side: T.DoubleSide}));
-    this.cone.rotation.x = -Math.PI / 2; this.cone.position.y = .06; this.group.add(this.cone);
-    // The "!" over the head when Richie is spotted.
-    const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d')!;
-    g.fillStyle = '#ff4a3a'; g.font = 'bold 56px Arial'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('!', 32, 34);
-    const tex = new T.CanvasTexture(c); tex.colorSpace = T.SRGBColorSpace;
-    this.bang = new T.Sprite(new T.SpriteMaterial({map: tex, transparent: true, depthTest: false}));
-    this.bang.scale.setScalar(.7); this.bang.position.y = 2.75; this.bang.visible = false; this.group.add(this.bang);
+  style: CheerStyle;
+  private head: T.Group;
+  private mouth: T.Mesh;
+  private sh: T.Group[];
+  private fore: T.Group[];
+  private legs: T.Mesh[];
+  private phase: number;
+  private rate: number;
+  private base: number;
+  private lean: number;
+  constructor(seed: number, x: number, y: number, z: number, yaw = 0, style?: CheerStyle) {
+    const s = spec(seed), r = s.r;
+    this.style = style ?? pick(r, STYLES);
+    this.phase = r() * 20; this.rate = .85 + r() * .4; this.base = y; this.lean = (r() - .5) * .08;
+    const [body] = meshes(torsoParts(s), this.group);
+    if (s.text && !s.hoodie) { const q = new T.Mesh(new T.PlaneGeometry(.28, .28), shirtMaterial(s.text)); q.position.set(0, HIP + .53, .155); body.add(q); }
+    this.head = new T.Group(); this.head.position.y = NECK; this.group.add(this.head);
+    meshes(headParts(s, false), this.head);
+    this.mouth = new T.Mesh(tint(ball(.02, 10), 0x4a1c1c, 0), peopleMaterial); this.mouth.position.set(0, HEAD - NECK - .09, .145); this.mouth.scale.set(1.4, .5, .5); this.head.add(this.mouth);
+    this.sh = []; this.fore = [];
+    [-1, 1].forEach((side, i) => {
+      const sh = new T.Group(); sh.position.set(side * .27 * s.wide, SHOULDER, 0); this.group.add(sh);
+      const u = new T.Mesh(upperArmGeo(s, side), peopleMaterial); u.castShadow = true; sh.add(u);
+      const fo = new T.Group(); fo.position.y = -ELBOW; sh.add(fo);
+      const f = new T.Mesh(forearmGeo(s, side), peopleMaterial); f.castShadow = true; fo.add(f);
+      this.sh.push(sh); this.fore.push(fo);
+      if (i === 1) this.prop(fo, s);
+      if (i === 0 && this.style === 'laptop') this.laptop(fo);
+    });
+    this.legs = [-1, 1].map(side => { const m = new T.Mesh(legGeo(s, side), peopleMaterial); m.position.set(side * .11, HIP, 0); m.castShadow = true; this.group.add(m); return m; });
     this.group.scale.setScalar(s.height);
-    this.wp = Math.floor(s.r() * waypoints.length);
-    const start = waypoints[this.wp];
-    this.group.position.set(start.x, start.y, start.z);
-    this.yaw = s.r() * 6.28;
-    this.home = start.clone(); this.homeYaw = this.yaw;
+    this.group.position.set(x, y, z);
+    this.group.rotation.y = yaw;
   }
-
-  /** Put the guard somewhere on purpose (the debug hook uses this to stage a catch). */
-  place(x: number, y: number, z: number, yaw: number) {
-    this.group.position.set(x, y, z); this.yaw = yaw; this.group.rotation.y = yaw; this.pause = 3;
-    return this;
-  }
-
-  reset() {
-    this.state = 'patrol'; this.timer = 0; this.cooldown = 0; this.unseen = 0; this.pause = 0;
-    this.group.position.copy(this.home); this.yaw = this.homeYaw; this.group.rotation.y = this.yaw;
-    this.bang.visible = false; this.tint(false);
-  }
-
-  private tint(alert: boolean) {
-    const m = this.cone.material as T.MeshBasicMaterial;
-    m.color.set(alert ? 0xff4a3a : 0xffd25c); m.opacity = alert ? .28 : .16;
-  }
-
-  private sees(q: Quarry) {
-    if (!q.catchable || this.cooldown > 0) return false;
-    const p = this.group.position, dx = q.pos.x - p.x, dz = q.pos.z - p.z, d = Math.hypot(dx, dz);
-    if (d > this.range || Math.abs(q.pos.y - p.y) > 4) return false;
-    const rel = Math.atan2(Math.sin(Math.atan2(dx, dz) - this.yaw), Math.cos(Math.atan2(dx, dz) - this.yaw));
-    if (Math.abs(rel) > this.fov) return false;
-    return q.canSee(new T.Vector3(p.x, p.y + 2, p.z), new T.Vector3(q.pos.x, q.pos.y + .3, q.pos.z));
-  }
-
-  private stepTo(x: number, z: number, speed: number, dt: number) {
-    const p = this.group.position, dx = x - p.x, dz = z - p.z, d = Math.hypot(dx, dz);
-    if (d < .05) return d;
-    const target = Math.atan2(dx, dz);
-    this.yaw += Math.atan2(Math.sin(target - this.yaw), Math.cos(target - this.yaw)) * Math.min(1, dt * 8);
-    const s = Math.min(speed * dt, d);
-    p.x += dx / d * s; p.z += dz / d * s;
-    return d - s;
-  }
-
-  update(dt: number, t: number, q: Quarry): GuardEvent {
-    const p = this.group.position;
-    let ev: GuardEvent = null, moving = 0;
-    this.cooldown = Math.max(0, this.cooldown - dt);
-    const seen = this.sees(q);
-    if (seen) { this.lastSeen.copy(q.pos); this.unseen = 0; } else this.unseen += dt;
-
-    switch (this.state) {
-      case 'patrol':
-      case 'return': {
-        if (seen) { this.state = 'alert'; this.timer = .45; this.bang.visible = true; this.tint(true); ev = 'spotted'; break; }
-        if (this.pause > 0) { this.pause -= dt; break; }
-        const w = this.waypoints[this.wp];
-        if (this.stepTo(w.x, w.z, this.speed, dt) < .3) { this.wp = (this.wp + 1) % this.waypoints.length; this.pause = .5 + Math.random() * 2.5; this.state = 'patrol'; }
-        else moving = 1;
-        break;
-      }
-      case 'alert': { // a beat of "HEY!" before the running starts
-        this.timer -= dt;
-        const dx = q.pos.x - p.x, dz = q.pos.z - p.z, target = Math.atan2(dx, dz);
-        this.yaw += Math.atan2(Math.sin(target - this.yaw), Math.cos(target - this.yaw)) * Math.min(1, dt * 10);
-        if (this.timer <= 0) this.state = 'chase';
-        break;
-      }
-      case 'chase': {
-        if (this.unseen > 5) { this.state = 'return'; this.bang.visible = false; this.tint(false); ev = 'lost'; break; }
-        const goal = seen ? q.pos : this.lastSeen;
-        const d = this.stepTo(goal.x, goal.z, this.chaseSpeed, dt);
-        moving = 1;
-        if (seen && d < 1.3 && Math.abs(q.pos.y - p.y) < 1.7) { this.state = 'grab'; this.timer = 1.0; ev = 'grabbed'; }
-        break;
-      }
-      case 'grab': { // hoist and hold: Richie sits in `hands`
-        this.timer -= dt;
-        if (this.timer <= 0) { this.state = 'throw'; this.timer = .35; ev = 'thrown'; }
-        break;
-      }
-      case 'throw': {
-        this.timer -= dt;
-        if (this.timer <= 0) { this.state = 'return'; this.cooldown = 4; this.bang.visible = false; this.tint(false); }
-        break;
-      }
+  /**
+   * What the right hand holds. These are held aloft, and a raised forearm is turned about
+   * half a turn about x, so the prop is built in a group flipped the same way: in it +Y is
+   * up when the arm is up and +Z faces the fight (and the camera).
+   */
+  private prop(hand: T.Object3D, s: Spec) {
+    const held = new T.Group(); held.position.y = -HAND; held.rotation.x = Math.PI; hand.add(held);
+    const add = (g: T.BufferGeometry, mat: T.Material = peopleMaterial) => { const m = new T.Mesh(g, mat); m.castShadow = true; held.add(m); return m; };
+    if (this.style === 'phone') {
+      add(tint(at(box(.072, .15, .009), 0, .1, 0), 0x15151a, .01), glossMaterial);
+      add(tint(at(ball(.008, 8), .022, .15, .006), 0x222233, 0), glossMaterial);                             // the lens, on the fight
+      const scr = new T.Mesh(new T.PlaneGeometry(.062, .13), screenMaterial); scr.position.set(0, .1, -.005); scr.rotation.y = Math.PI; held.add(scr);
+    } else if (this.style === 'sign') {
+      add(tint(at(tube(.012, .5), 0, .25, 0), 0xc9a26a, .03));
+      const board = pick(s.r, ['#f7f4ec', '#f0752a', '#f6c21c', '#1c1c1e']), ink = board === '#1c1c1e' ? '#f6c21c' : '#15171b';
+      add(tint(at(box(.44, .3, .012), 0, .62, 0), new T.Color(board).getHex(), .01));
+      const text = new T.Mesh(new T.PlaneGeometry(.42, .28), textMaterial(pick(s.r, SIGNS), ink, board, 58)); text.position.set(0, .62, .008); held.add(text);
+      const back = text.clone(); back.position.z = -.008; back.rotation.y = Math.PI; held.add(back);
+    } else if (this.style === 'foam') {
+      add(tint(at(box(.17, .26, .06), 0, .13, 0), 0xf0752a, .02));
+      add(tint(at(box(.06, .15, .06), 0, .33, 0), 0xf0752a, .02));
+      const one = new T.Mesh(new T.PlaneGeometry(.15, .2), textMaterial('#1', '#ffffff', null, 90)); one.position.set(0, .13, .032); held.add(one);
     }
-    this.group.rotation.y = this.yaw;
-    this.hands.set(p.x - Math.sin(this.yaw) * .2, p.y + 2.7, p.z + Math.cos(this.yaw) * .2);
-    this.moving += (moving - this.moving) * Math.min(1, dt * 8);
-    this.phase += dt * (this.state === 'chase' ? 12 : 7.5) * this.moving;
-    const [aL, aR, lL, lR] = this.limbs, ph = this.phase, m = this.moving, holding = this.state === 'grab' || this.state === 'throw';
-    lL.rotation.x = Math.sin(ph) * .6 * m; lR.rotation.x = -Math.sin(ph) * .6 * m;
-    // Arms: pump while running, straight up while holding Richie, swinging through on the throw.
-    const armUp = holding ? (this.state === 'throw' ? Math.PI - .2 + (.35 - this.timer) * 3 : Math.PI - .25) : 0;
-    aL.rotation.x = holding ? armUp : -Math.sin(ph) * .5 * m; aR.rotation.x = holding ? armUp : Math.sin(ph) * .5 * m;
-    this.bang.position.y = 2.75 + Math.sin(t * 8) * .05;
-    return ev;
   }
+  /** A laptop balanced on the left forearm, held flat in front, its screen lit. */
+  private laptop(hand: T.Object3D) {
+    const add = (g: T.BufferGeometry, mat: T.Material = peopleMaterial) => { const m = new T.Mesh(g, mat); m.castShadow = true; hand.add(m); return m; };
+    add(tint(at(box(.32, .22, .014), .04, -HAND - .1, .04), 0xa8a8a8, .01));
+    add(tint(at(box(.32, .014, .2), .04, -HAND - .21, .14, .25), 0x9a9a9a, .01));
+    const scr = new T.Mesh(new T.PlaneGeometry(.28, .17), screenMaterial); scr.position.set(.04, -HAND - .2, .14); scr.rotation.x = -Math.PI / 2 + .25; hand.add(scr);
+    for (let i = 0; i < 12; i++) add(tint(at(box(.02, .022, .004), -.07 + (i % 6) * .028, -HAND - .06 - Math.floor(i / 6) * .03, .048), 0x2a2a2a, 0));
+  }
+  /** `excitement` 0..1 is the arena's; a fan at a fight is never below half. */
+  update(t: number, excitement = 0) {
+    const e = .5 + .5 * Math.min(1, excitement), tt = t * this.rate + this.phase, st = this.style;
+    const [L, R] = this.sh, [fL, fR] = this.fore, up = -2.85, s1 = Math.sin(tt * 3), s2 = Math.sin(tt * 4);
+    let ax = [0, 0], az = [0, 0], fx = [-.15, -.15], hx = -.1 * e, jump = 0;
+    switch (st) {
+      // With the arm up the forearm is turned over: a positive elbow bend brings the hand forward.
+      case 'arms': ax = [up + s1 * .15, up - s1 * .15]; az = [.35 + s1 * .2, -.35 + s1 * .2]; fx = [.3, .3]; break;
+      case 'jump': ax = [up, up]; az = [.5, -.5]; fx = [.2, .2]; jump = Math.abs(Math.sin(tt * 2.2)) * .22 * e; break;
+      case 'pump': ax = [-.25, -2.2 - .5 * (.5 + .5 * s2)]; az = [.5, -.1]; fx = [-1.2, .9 - .5 * (.5 + .5 * s2)]; break;
+      case 'phone': ax = [-.3, -2.35]; az = [.15, -.12]; fx = [-.9, .55]; hx = -.28; break;
+      case 'sign': ax = [-2.55 + Math.sin(tt * 2.5) * .22, -2.6 + Math.sin(tt * 2.5) * .22]; az = [.3, -.28]; fx = [.35, .35]; break;
+      case 'clap': { const k = .5 + .5 * Math.sin(tt * 7); ax = [-1.35, -1.35]; az = [.1 + .28 * k, -.1 - .28 * k]; fx = [-1.15, -1.15]; break; }
+      case 'laptop': { const cheer = Math.sin(tt * .45) > .82; ax = [-.5, cheer ? -2.75 : -.55]; az = [.05, cheer ? -.3 : -.15]; fx = [-1.07, cheer ? .3 : -1.3 + Math.sin(tt * 12) * .07]; hx = cheer ? -.2 : .3; break; }
+      case 'foam': ax = [-.2, -2.75 + s1 * .12]; az = [.4, -.3 + s1 * .35]; fx = [-1.1, .25]; break;
+      case 'wave': ax = [-.25, -2.75]; az = [.45, -.2 + s2 * .5]; fx = [-1.0, .3]; break;
+    }
+    L.rotation.x = ax[0]; R.rotation.x = ax[1]; L.rotation.z = az[0]; R.rotation.z = az[1]; fL.rotation.x = fx[0]; fR.rotation.x = fx[1];
+    const bob = st === 'jump' ? jump : Math.abs(Math.sin(tt * 2)) * .035 * e;
+    this.group.position.y = this.base + bob;
+    this.group.rotation.z = this.lean + Math.sin(tt * 1.1) * .025;
+    this.legs.forEach((l, i) => { l.rotation.x = st === 'jump' ? -(1 - Math.min(1, jump / .1)) * .2 : Math.sin(tt * 2 + i * Math.PI) * .04; });
+    this.head.rotation.x = hx + Math.sin(tt * 2) * .04;
+    this.head.rotation.y = Math.sin(tt * .7) * .18;
+    this.head.rotation.z = Math.sin(tt * 1.6) * .05;
+    // The shout: the mouth opens on the beat, wider the more excited they are.
+    const open = Math.max(0, Math.sin(tt * 3)) * e;
+    this.mouth.scale.set(1.2 + open * .5, .3 + open * 1.9, .5 + open * .5);
+  }
+}
+/**
+ * The crowd behind a fight: one fan per spot, each with their own style and beat. Facing
+ * +z, towards the fighters and the camera. Keeps the old shape: {group, update}.
+ */
+export function cheeringCrowd(spots: {x: number; y: number; z: number}[], seed = 11, styles?: CheerStyle[]) {
+  const group = new T.Group(), r = rng(seed);
+  const fans = spots.map((sp, i) => { const f = new Fan(seed * 131 + i, sp.x, sp.y, sp.z, (r() - .5) * .7, styles?.[i % (styles.length || 1)]); group.add(f.group); return f; });
+  return {group, fans, update(t: number, excitement = 0) { for (const f of fans) f.update(t, excitement); }};
 }

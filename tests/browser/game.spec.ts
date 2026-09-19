@@ -4,8 +4,8 @@ test("boots, selects every fighter, and completes a playable match", async ({
 }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  // ?nofx: the software renderer in CI has no time for a bloom pass on every frame.
-  await page.goto("/?nofx");
+  // ?lite: the software renderer in CI has no time for bloom, shadows or a retina canvas.
+  await page.goto("/?lite");
   await expect(
     page.getByRole("button", { name: /One robot. Five/ }),
   ).toBeVisible();
@@ -72,7 +72,7 @@ test("boots, selects every fighter, and completes a playable match", async ({
 test("combat: block, grab, hazard, Overclock and individual special abilities", async ({
   page,
 }) => {
-  await page.goto("/");
+  await page.goto("/?lite");
   await page.waitForFunction(() => (window as any).rumble);
   const r = await page.evaluate(() => {
     const g = (window as any).rumble;
@@ -127,7 +127,7 @@ test("combat: block, grab, hazard, Overclock and individual special abilities", 
 });
 test("mobile menu and touch controls remain usable", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/");
+  await page.goto("/?lite");
   await page.getByRole("button", { name: /One robot. Five/ }).click();
   await page.locator('[data-fighter="richie"]').click();
   await page.getByRole("button", { name: "CHOOSE ARENA →" }).click();
@@ -143,7 +143,7 @@ test("mobile menu and touch controls remain usable", async ({ page }) => {
 test("keys can be rebound from settings and the HUD follows", async ({
   page,
 }) => {
-  await page.goto("/?nofx");
+  await page.goto("/?lite");
   await page.getByRole("button", { name: "⚙ SETTINGS" }).click();
   await page.getByRole("button", { name: "RESET KEYS TO DEFAULT" }).click();
   const light = page.locator('[data-bind="0:light"]');
@@ -191,7 +191,7 @@ test.describe("phone", () => {
   test("the stick moves the fighter and the buttons attack", async ({
     page,
   }) => {
-    await page.goto("/");
+    await page.goto("/?lite");
     await expect(page.locator("body")).toHaveClass(/touch/);
     await page.getByRole("button", { name: "TRAINING ROOM", exact: true }).click();
     await page.getByRole("button", { name: "CHOOSE ARENA →" }).click();
