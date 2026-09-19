@@ -4,6 +4,8 @@ export class Input {
   taps = new Set<string>();
   touchTaps = new Set<string>();
   touch = new Set<string>();
+  /** The touch stick, -1..1 each way: x is move, up is jump, down is crouch. */
+  stick = { x: 0, y: 0 };
   lastActivity = performance.now();
   paused: () => void = () => {};
   start: () => void = () => {};
@@ -38,6 +40,7 @@ export class Input {
     this.taps.clear();
     this.touchTaps.clear();
     this.touch.clear();
+    this.stick.x = this.stick.y = 0;
   }
   read(player: number, versus: boolean): Controls {
     const c = neutral(),
@@ -46,9 +49,10 @@ export class Input {
       yes = (code: string, action: string) =>
         k.has(code) || (player === 0 && t.has(action));
     if (player === 0) {
-      c.move = +yes("KeyD", "right") - +yes("KeyA", "left");
-      c.jump = yes("KeyW", "jump");
-      c.crouch = yes("KeyS", "crouch");
+      const sx = Math.abs(this.stick.x) > 0.3 ? Math.sign(this.stick.x) : 0;
+      c.move = +yes("KeyD", "right") - +yes("KeyA", "left") || sx;
+      c.jump = yes("KeyW", "jump") || this.stick.y < -0.55;
+      c.crouch = yes("KeyS", "crouch") || this.stick.y > 0.55;
       c.block = yes("Space", "block");
       c.light = yes("KeyJ", "light");
       c.heavy = yes("KeyK", "heavy");

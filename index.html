@@ -4,22 +4,95 @@
     <meta charset="UTF-8" />
     <meta
       name="viewport"
-      content="width=device-width,initial-scale=1,viewport-fit=cover"
+      content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no"
     />
-    <meta name="theme-color" content="#101117" />
+    <meta name="theme-color" content="#10131b" />
     <meta
       name="description"
       content="Five robots. Zero supervision. An absurd 3D arcade robot fighter after hours at Devoxx."
     />
+    <meta property="og:title" content="Runtime Rumble" />
+    <meta
+      property="og:description"
+      content="Five robots. Zero supervision. A 2.5D arcade robot fighter after hours at Devoxx, Kinepolis Antwerp."
+    />
+    <meta property="og:type" content="website" />
     <title>Runtime Rumble — Five robots. Zero supervision.</title>
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
   </head>
   <body>
     <canvas id="game" aria-label="Runtime Rumble 3D combat arena"></canvas>
-    <div id="ui"><div class="loading">BOOTING THE BAD IDEAS…</div></div>
+    <div id="ui"></div>
     <div id="hud" hidden></div>
     <div id="announcement" role="status"></div>
     <div id="touch" hidden></div>
+    <!-- Shown until main.ts has a running render loop, and rewritten in place if the
+         boot fails. Without it a WebGL or WASM failure is an unexplained black page. -->
+    <div id="boot">
+      <div>
+        <b>RUNTIME RUMBLE</b><span id="bootMsg">BOOTING THE BAD IDEAS…</span>
+      </div>
+    </div>
+    <noscript>
+      <div id="boot">
+        <div>
+          <b>RUNTIME RUMBLE</b
+          ><span>This game needs JavaScript. The robots need it more.</span>
+        </div>
+      </div>
+    </noscript>
+    <script>
+      // The physics is WebAssembly and the venue is WebGL; either can be missing or
+      // blocked. Turn the silent failure into something a visitor can act on.
+      (function () {
+        var done = false;
+        function fail(detail) {
+          if (done) return;
+          done = true;
+          var box = document.getElementById("boot");
+          if (!box) return;
+          var webgl = false;
+          try {
+            webgl = !!document.createElement("canvas").getContext("webgl2");
+          } catch (e) {
+            /* blocked */
+          }
+          box.hidden = false;
+          box.className = "failed";
+          box.innerHTML =
+            "<div><b>BOOT INTERRUPTED.</b><span>" +
+            (webgl
+              ? "The game failed to start. Reload the page, and if it keeps happening please report it with the detail below."
+              : "This browser has no usable WebGL 2. Try a recent Chrome, Edge, Firefox or Safari with hardware acceleration enabled.") +
+            "</span><code>" +
+            String(detail).slice(0, 300).replace(/[<&]/g, " ") +
+            '</code><a class="btn" href="https://github.com/janvanwassenhove/RuntimeRumble/issues">REPORT IT ↗</a></div>';
+        }
+        addEventListener(
+          "error",
+          function (e) {
+            if (e.target && e.target.tagName === "SCRIPT")
+              fail("The game script failed to load.");
+            else if (e.message) fail(e.message);
+          },
+          true,
+        );
+        addEventListener("unhandledrejection", function (e) {
+          fail((e.reason && e.reason.message) || e.reason);
+        });
+        // A module that never evaluates (blocked script, failed chunk) reports nothing at all.
+        setTimeout(function () {
+          if (document.getElementById("boot")) fail("Timed out while starting.");
+        }, 30000);
+      })();
+    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

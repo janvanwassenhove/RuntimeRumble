@@ -16,10 +16,16 @@ import {
   matchup,
   neutral,
 } from "./data";
-import { Robot, robot, animateRobot, mat, disposeRobot } from "./models";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+import { Robot, robot, animateRobot, disposeRobot, loadRichie } from "./models";
 import { ArenaVisual } from "./arena";
 import { AudioEngine } from "./audio";
 import { Input } from "./input";
+import { setAnisotropy } from "./textures";
 export interface Attack {
   kind: Action;
   t: number;
@@ -95,6 +101,10 @@ export class Game {
   sparkGeo = new T.BoxGeometry(0.05, 0.05, 0.15);
   sparkMat = new T.MeshBasicMaterial({ color: "#ffcf6f" });
   spot: T.SpotLight;
+  hemi: T.HemisphereLight;
+  sun: T.DirectionalLight;
+  fog: T.Fog;
+  composer: EffectComposer | null = null;
   onUpdate: () => void = () => {};
   onEnd: (winner: number) => void = () => {};
   onAnnounce: (title: string, sub?: string) => void = () => {};
@@ -103,42 +113,84 @@ export class Game {
   constructor(
     canvas: HTMLCanvasElement,
     public audio: AudioEngine,
+    /** Bloom on: off on touch devices and with ?nofx, to keep the frame rate up. */
+    public fx = true,
   ) {
     this.renderer = new T.WebGLRenderer({
       canvas,
       antialias: true,
       powerPreference: "high-performance",
     });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio, fx ? 1.75 : 1.5));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = T.PCFSoftShadowMap;
     this.renderer.toneMapping = T.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.3;
-    this.scene.background = new T.Color("#10131d");
-    this.scene.fog = new T.Fog("#10131d", 28, 70);
-    this.scene.add(new T.HemisphereLight("#cee8ff", "#302420", 2));
-    const key = new T.DirectionalLight("#ffe0c2", 3.3);
-    key.position.set(-5, 10, 9);
-    key.castShadow = true;
-    key.shadow.mapSize.set(2048, 2048);
-    Object.assign(key.shadow.camera, {
-      left: -18,
-      right: 18,
-      top: 14,
+    this.renderer.toneMappingExposure = 1.15;
+    setAnisotropy(this.renderer.capabilities.getMaxAnisotropy());
+    // An environment map is what makes plastic shells and glass lenses read as materials at all.
+    const pmrem = new T.PMREMGenerator(this.renderer);
+    this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    this.scene.environmentIntensity = 0.5;
+    pmrem.dispose();
+    this.fog = this.scene.fog = new T.Fog("#0b1118", 30, 100);
+    this.scene.background = new T.Color("#0b1118");
+    this.hemi = new T.HemisphereLight(0xe6eef6, 0x4a4f58, 1.5);
+    this.scene.add(this.hemi);
+    // One shadow-casting key light over the fight, graded per arena.
+    this.sun = new T.DirectionalLight(0xfff0dc, 2.6);
+    this.sun.position.set(-8, 16, 10);
+    this.sun.castShadow = true;
+    // Phones (and the software renderer in CI) get a smaller shadow map.
+    this.sun.shadow.mapSize.set(fx ? 2048 : 1024, fx ? 2048 : 1024);
+    Object.assign(this.sun.shadow.camera, {
+      left: -20,
+      right: 20,
+      top: 16,
       bottom: -12,
+      near: 1,
+      far: 60,
     });
-    key.shadow.bias = -0.001;
-    this.scene.add(key);
-    const rim = new T.DirectionalLight("#668fff", 3);
+    this.sun.shadow.bias = -0.0006;
+    this.sun.shadow.normalBias = 0.03;
+    this.scene.add(this.sun, this.sun.target);
+    const rim = new T.DirectionalLight("#668fff", 1.2);
     rim.position.set(5, 7, -5);
     this.scene.add(rim);
     this.spot = new T.SpotLight("#ff7c44", 80, 30, 1, 0.8, 1.5);
     this.spot.position.set(-5, 8, 1);
     this.scene.add(this.spot);
+    if (fx) {
+      // Bloom makes the light fittings, lightboxes and robot eyes read as sources.
+      this.composer = new EffectComposer(
+        this.renderer,
+        new T.WebGLRenderTarget(innerWidth, innerHeight, {
+          type: T.HalfFloatType,
+          samples: 4,
+        }),
+      );
+      this.composer.addPass(new RenderPass(this.scene, this.camera));
+      this.composer.addPass(
+        new UnrealBloomPass(new T.Vector2(innerWidth, innerHeight), 0.3, 0.55, 1.25),
+      );
+      this.composer.addPass(new OutputPass());
+    }
     this.camera.position.set(0, 4.5, 24);
     this.camera.lookAt(0, 1.8, 0);
     window.addEventListener("resize", () => this.resize());
     this.resize();
+  }
+  /** Ease the lights and fog towards the arena's grade: bright hall, dark auditorium. */
+  grade(dt: number) {
+    const g = this.arena.grade,
+      k = Math.min(1, dt * 2.5);
+    this.hemi.intensity += (g.hemi - this.hemi.intensity) * k;
+    this.sun.intensity += (g.sun - this.sun.intensity) * k;
+    this.sun.color.lerp(new T.Color(g.sunColor), k);
+    this.fog.color.lerp(new T.Color(g.fog), k);
+    this.fog.near += (g.near - this.fog.near) * k;
+    this.fog.far += (g.far - this.fog.far) * k;
+    this.scene.environmentIntensity += (g.env - this.scene.environmentIntensity) * k;
+    (this.scene.background as T.Color).copy(this.fog.color);
   }
   emptyStats(): Stats {
     return {
@@ -152,14 +204,20 @@ export class Game {
     };
   }
   async init() {
-    await R.init();
+    await Promise.all([R.init(), loadRichie()]);
     this.setArena(0);
     this.menuScene();
     requestAnimationFrame((t) => this.frame(t));
   }
   resize() {
-    this.renderer.setSize(innerWidth, innerHeight);
-    this.camera.aspect = innerWidth / innerHeight;
+    // A tab that opens hidden reports a 0×0 window; a zero-size target cannot be drawn to,
+    // and a NaN aspect would poison the camera's lerp for good.
+    const w = Math.max(1, innerWidth),
+      h = Math.max(1, innerHeight);
+    this.renderer.setSize(w, h);
+    this.composer?.setPixelRatio(this.renderer.getPixelRatio());
+    this.composer?.setSize(w, h);
+    this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
   }
   setArena(index: number) {
@@ -175,8 +233,12 @@ export class Game {
     this.phase = "menu";
     this.cinematic = -1;
     this.audio.active = false;
+    this.paused = false;
+    this.input.lastActivity = performance.now();
     this.fighters.forEach((f) => disposeRobot(f.model));
     this.fighters = [];
+    // The line-up survives menu hops: rebuilding five robots per click is wasted work.
+    if (this.showcase.length === FIGHTERS.length) return;
     this.showcase.forEach(disposeRobot);
     this.showcase = FIGHTERS.map((f, i) => {
       const r = robot(f);
@@ -900,6 +962,7 @@ export class Game {
         air: p.y - f.def.height / 2 > 0.2,
         overclock: f.oc > 0,
         roller: f.roller > 0,
+        charge: f.def.id === "richie" ? f.charge : 0,
       });
       if (f.hp < 25 && Math.random() < dt * 6)
         this.burst(p.x, p.y + f.def.height * 0.35, 1);
@@ -936,14 +999,14 @@ export class Game {
         2 /
         Math.tan(T.MathUtils.degToRad(39 / 2)) /
         Math.max(aspect, 0.6);
-    const z = menu ? Math.max(24, 26 / aspect) : clamp(needed, 19, 44);
-    const target = new T.Vector3(clamp(mid, -3, 3), menu ? 4.3 : 4.8, z);
+    const z = menu ? Math.max(22, 24 / aspect) : clamp(needed, 15, 40);
+    const target = new T.Vector3(clamp(mid, -3, 3), menu ? 4.3 : 3.6, z);
     this.camera.position.lerp(target, dt * 3);
     const shake = this.audio.settings.reducedShake ? 0 : this.shake;
     this.camera.position.x += (Math.random() - 0.5) * shake;
     this.camera.position.y += (Math.random() - 0.5) * shake;
     this.shake = Math.max(0, this.shake - dt * 1.5);
-    this.camera.lookAt(clamp(mid, -3, 3), menu ? 4.6 : 1.4, 0);
+    this.camera.lookAt(clamp(mid, -3, 3), menu ? 4.4 : 1.7, 0);
     if (this.cinematic >= 0) {
       const shot = this.cinematic;
       if (shot < 2) {
@@ -961,8 +1024,13 @@ export class Game {
         }
       }
       this.spot.intensity = shot < 2 ? 8 : 80 + Math.sin(this.time * 9) * 35;
-    } else this.spot.intensity = 80;
-    this.renderer.render(this.scene, this.camera);
+    } else this.spot.intensity = menu ? 60 : 0;
+    this.grade(dt);
+    // The key light follows the fight so its shadow map stays tight on the fighters.
+    this.sun.target.position.set(clamp(mid, -3, 3), 0, 0);
+    this.sun.position.set(clamp(mid, -3, 3) - 8, 16, 10);
+    if (this.composer) this.composer.render(dt);
+    else this.renderer.render(this.scene, this.camera);
     this.onUpdate();
     requestAnimationFrame((t) => this.frame(t));
   }

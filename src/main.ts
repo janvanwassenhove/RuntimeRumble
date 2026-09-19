@@ -6,14 +6,27 @@ import "@fontsource/barlow-condensed/latin-800.css";
 import "@fontsource/barlow-condensed/latin-900-italic.css";
 import "./style.css";
 import * as T from "three";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { registerSW } from "virtual:pwa-register";
 import { Game } from "./game";
 import { AudioEngine, loadSettings } from "./audio";
 import { FIGHTERS, ARENAS, FighterId, Mode, fighter } from "./data";
 import { robot, disposeRobot } from "./models";
+// Installable and offline after one visit: the service worker precaches every asset.
+registerSW({ immediate: true });
 const ui = document.querySelector<HTMLDivElement>("#ui")!,
   hud = document.querySelector<HTMLDivElement>("#hud")!,
   announcement = document.querySelector<HTMLDivElement>("#announcement")!,
   touch = document.querySelector<HTMLDivElement>("#touch")!;
+// A phone or tablet gets the stick and buttons; a touch laptop with a mouse keeps the keyboard.
+// ?touch forces the phone layout for a look at it on a desktop; ?nofx switches bloom off.
+const params = new URLSearchParams(location.search);
+const isTouch =
+  params.has("touch") ||
+  matchMedia("(pointer:coarse)").matches ||
+  (navigator.maxTouchPoints > 0 && !matchMedia("(hover:hover)").matches);
+const fx = !isTouch && !params.has("nofx");
+if (isTouch) document.body.classList.add("touch");
 const audio = new AudioEngine(loadSettings());
 let game: Game;
 let screen = "home",
@@ -34,7 +47,7 @@ function header(back = false) {
   return `<header><button class="wordmark" data-action="home"><span class="brandmark">R/</span> RUNTIME<span class="muted">RUMBLE</span></button><div class="header-right"><span class="live-dot"></span> AFTER HOURS · ANTWERP ${back ? button("← BACK", "home", "small") : button("HOW TO PLAY", "help", "small")} ${button("⚙ SETTINGS", "settings", "small")}</div></header>`;
 }
 function footer() {
-  return `<footer><span>DEVOXX / AFTER HOURS</span><span>FIVE ROBOTS. ZERO SUPERVISION.</span><button data-action="credits">CREDITS ↗</button></footer>`;
+  return `<footer><span>DEVOXX / AFTER HOURS</span><span>FIVE ROBOTS. ZERO SUPERVISION.</span><span class="version">v${__APP_VERSION__}</span><button data-action="credits">CREDITS ↗</button></footer>`;
 }
 function setScreen(name: string, html: string) {
   screen = name;
@@ -52,7 +65,7 @@ function home() {
   announcement.textContent = "";
   setScreen(
     "home",
-    `${header()}<main class="home-layout"><section class="home-copy"><div class="eyebrow"><span class="line"></span> THE CONFERENCE IS OVER. THE FIGHT ISN’T.</div><h1>RUNTIME<br><em>RUMBLE</em><span class="title-dot">®</span></h1><p class="tagline">Five robots. <strong>Zero supervision.</strong></p><div class="edition"><span>01—05</span> ORIGINAL MACHINES <b>×</b> <span>06</span> UNSAFE ARENAS</div></section><nav class="mode-menu"><div class="menu-label">CHOOSE YOUR BAD IDEA <span>↙</span></div>${button("<span><b>ARCADE</b><small>One robot. Five increasingly bad decisions.</small></span><i>↗</i>", "arcade", "mode-button primary")}${button("<span><b>LOCAL VERSUS</b><small>Bring a friend. Leave with a rival.</small></span><i>↗</i>", "versus", "mode-button")}${button("<span><b>CHAOS MODE</b><small>30 seconds. All hazards. No excuses.</small></span><i>↗</i>", "chaos", "mode-button")}<div class="menu-extras">${button("TRAINING ROOM", "training")}${button("WATCH INTRO ↗", "intro")}</div><div class="controller-note">◉ KEYBOARD + GAMEPAD READY<br><span>ENTER / START TO PLAY</span></div></nav></main><div class="roster-labels">${FIGHTERS.map((f, i) => `<span><small>0${i + 1}</small> ${f.name}</span>`).join("")}</div>${footer()}`,
+    `${header()}<main class="home-layout"><section class="home-copy"><div class="eyebrow"><span class="line"></span> THE CONFERENCE IS OVER. THE FIGHT ISN’T.</div><h1>RUNTIME<br><em>RUMBLE</em><span class="title-dot">®</span></h1><p class="tagline">Five robots. <strong>Zero supervision.</strong></p><div class="edition"><span>01—05</span> ORIGINAL MACHINES <b>×</b> <span>06</span> UNSAFE ARENAS</div></section><nav class="mode-menu"><div class="menu-label">CHOOSE YOUR BAD IDEA <span>↙</span></div>${button("<span><b>ARCADE</b><small>One robot. Five increasingly bad decisions.</small></span><i>↗</i>", "arcade", "mode-button primary")}${button("<span><b>LOCAL VERSUS</b><small>Bring a friend. Leave with a rival.</small></span><i>↗</i>", "versus", "mode-button")}${button("<span><b>CHAOS MODE</b><small>30 seconds. All hazards. No excuses.</small></span><i>↗</i>", "chaos", "mode-button")}<div class="menu-extras">${button("TRAINING ROOM", "training")}${button("WATCH INTRO ↗", "intro")}</div><div class="controller-note">${isTouch ? "◉ TOUCH CONTROLS ON<br><span>STICK TO MOVE · UP TO JUMP · LANDSCAPE WORKS BEST</span>" : "◉ KEYBOARD + GAMEPAD READY<br><span>ENTER / START TO PLAY</span>"}</div></nav></main><div class="roster-labels">${FIGHTERS.map((f, i) => `<span><small>0${i + 1}</small> ${f.name}</span>`).join("")}</div>${footer()}`,
   );
 }
 function cards() {
@@ -96,23 +109,83 @@ function launch() {
   makeTouch();
 }
 function makeHud() {
-  hud.innerHTML = `<div class="hud-top"><div class="fighter-hud"><div class="hud-name"><span id="name0"></span><small>PLAYER 01</small></div><div class="integrity"><div id="hp0"></div></div><div class="hud-sub"><span id="rounds0"></span><span id="health0"></span></div><div class="oc"><div id="oc0"></div></div><small id="oclabel0">OVERCLOCK</small></div><div class="timer-box"><small>ROUND <span id="round-number">1</span></small><strong id="timer">75</strong><small>BEST OF THREE</small></div><div class="fighter-hud right"><div class="hud-name"><span id="name1"></span><small>${mode === "versus" ? "PLAYER 02" : mode === "training" ? "TRAINING DUMMY" : "CPU"}</small></div><div class="integrity"><div id="hp1"></div></div><div class="hud-sub"><span id="rounds1"></span><span id="health1"></span></div><div class="oc"><div id="oc1"></div></div><small id="oclabel1">OVERCLOCK</small></div></div><div class="arena-hud"><span id="arena-label"></span><span id="hazard-status"></span></div><div class="fight-bottom"><span><kbd>A D</kbd> MOVE <kbd>W</kbd> JUMP <kbd>J K</kbd> HIT <kbd>L I</kbd> SPECIAL <kbd>U</kbd> GRAB <kbd>SPACE</kbd> BLOCK <kbd>O</kbd> OVERCLOCK</span>${button("Ⅱ PAUSE", "pause", "small")}</div>`;
-  hud.querySelector("button")!.onclick = pause;
+  hud.innerHTML = `<div class="hud-top"><div class="fighter-hud"><div class="hud-name"><span id="name0"></span><small>PLAYER 01</small></div><div class="integrity"><div id="hp0"></div></div><div class="hud-sub"><span id="rounds0"></span><span id="health0"></span></div><div class="oc"><div id="oc0"></div></div><small id="oclabel0">OVERCLOCK</small></div><div class="timer-box"><small>ROUND <span id="round-number">1</span></small><strong id="timer">75</strong><small>BEST OF THREE</small>${button("Ⅱ MENU", "pause", "small menubtn")}</div><div class="fighter-hud right"><div class="hud-name"><span id="name1"></span><small>${mode === "versus" ? "PLAYER 02" : mode === "training" ? "TRAINING DUMMY" : "CPU"}</small></div><div class="integrity"><div id="hp1"></div></div><div class="hud-sub"><span id="rounds1"></span><span id="health1"></span></div><div class="oc"><div id="oc1"></div></div><small id="oclabel1">OVERCLOCK</small></div></div><div class="arena-hud"><span id="arena-label"></span><span id="hazard-status"></span></div><div class="fight-bottom"><span><kbd>A D</kbd> MOVE <kbd>W</kbd> JUMP <kbd>J K</kbd> HIT <kbd>L I</kbd> SPECIAL <kbd>U</kbd> GRAB <kbd>SPACE</kbd> BLOCK <kbd>O</kbd> OVERCLOCK</span>${button("Ⅱ PAUSE", "pause", "small")}</div>`;
+  hud.querySelectorAll("button").forEach((b) => (b.onclick = pause));
 }
+// Touch: a stick on the left feeds the same move/jump/crouch the keys do, and a fight-stick
+// cluster on the right presses the same actions. Buttons are held, not clicked, so every
+// one captures its pointer and releases on lift, cancel or a finger sliding off.
 function makeTouch() {
-  touch.innerHTML = `<div class="touch-move">${["left", "crouch", "right", "jump"].map((a, i) => `<button data-touch="${a}" aria-label="${a}">${["◀", "▼", "▶", "▲"][i]}</button>`).join("")}</div><div class="touch-actions">${["block", "grab", "light", "heavy", "special", "secondary", "overclock"].map((a, i) => `<button data-touch="${a}">${["BLOCK", "GRAB", "LIGHT", "HEAVY", "SPEC", "ALT", "OC"][i]}</button>`).join("")}</div>`;
+  if (touch.dataset.ready) return;
+  touch.dataset.ready = "1";
+  touch.innerHTML = `<div id="stick" class="stick" aria-label="move"><i id="stickKnob"></i></div><div class="touch-actions"><button class="wide" data-touch="block">BLOCK</button>${[
+    ["light", "LIGHT", "A"],
+    ["heavy", "HEAVY", "B"],
+    ["grab", "GRAB", "RB"],
+    ["special", "SPEC", "X"],
+    ["secondary", "ALT", "LT"],
+    ["overclock", "OC", "RT"],
+  ]
+    .map(
+      ([a, l, k]) =>
+        `<button data-touch="${a}" aria-label="${a}"><b>${l}</b><small>${k}</small></button>`,
+    )
+    .join("")}</div>`;
+  const st = touch.querySelector<HTMLDivElement>("#stick")!,
+    knob = touch.querySelector<HTMLElement>("#stickKnob")!,
+    stick = game.input.stick;
+  let sid = -1;
+  const moveStick = (e: PointerEvent) => {
+    const r = st.getBoundingClientRect(),
+      R = r.width / 2 - 8,
+      dx = e.clientX - (r.left + r.width / 2),
+      dy = e.clientY - (r.top + r.height / 2),
+      l = Math.hypot(dx, dy),
+      k = l ? Math.min(l, R) / l : 0;
+    stick.x = (dx * k) / R;
+    stick.y = (dy * k) / R;
+    knob.style.transform = `translate(${dx * k}px,${dy * k}px)`;
+  };
+  st.onpointerdown = (e) => {
+    e.preventDefault();
+    sid = e.pointerId;
+    moveStick(e);
+    game.input.lastActivity = performance.now();
+    try {
+      st.setPointerCapture(sid);
+    } catch {}
+    audio.unlock();
+  };
+  st.onpointermove = (e) => {
+    if (e.pointerId === sid) moveStick(e);
+  };
+  st.onpointerup = st.onpointercancel = (e) => {
+    if (e.pointerId !== sid) return;
+    sid = -1;
+    stick.x = stick.y = 0;
+    knob.style.transform = "";
+  };
   touch.querySelectorAll<HTMLButtonElement>("button").forEach((b) => {
+    const a = b.dataset.touch!;
     b.onpointerdown = (e) => {
       e.preventDefault();
-      b.setPointerCapture(e.pointerId);
-      game.input.touch.add(b.dataset.touch!);
-      game.input.touchTaps.add(b.dataset.touch!);
+      try {
+        b.setPointerCapture(e.pointerId);
+      } catch {}
+      b.classList.add("down");
+      game.input.touch.add(a);
+      game.input.touchTaps.add(a);
+      game.input.lastActivity = performance.now();
       audio.unlock();
     };
-    const release = () => game.input.touch.delete(b.dataset.touch!);
+    const release = () => {
+      b.classList.remove("down");
+      game.input.touch.delete(a);
+    };
     b.onpointerup = release;
     b.onpointercancel = release;
     b.onlostpointercapture = release;
+    b.oncontextmenu = (e) => e.preventDefault();
   });
 }
 function updateHud() {
@@ -263,7 +336,7 @@ function help() {
       .map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join("")}</tr>`)
       .join(
         "",
-      )}</tbody></table><p>One controller in versus controls Player 2. Two controllers control Players 1 and 2. Tap attacks; hold block. Biggy’s special charges while held.</p></section><section><h3>MEET YOUR BAD DECISIONS</h3>${FIGHTERS.map((f) => `<p><b style="color:${f.color}">${f.name}</b> · ${f.special} / ${f.secondary}<br><small>${f.id === "voxxy" ? "Fast jabs and throws. Grab close, then aim toward a hazard." : f.id === "droid" ? "Long reach. Override nearby hazards; beware the wind-up." : f.id === "biggy" ? "Hold special to build momentum. Alternate braces against knockback." : f.id === "richie" ? "Hop to move. Launch with special. Crouch to play dead and evade jabs." : "Special toggles roller mode. Fast kicks, low friction, very little mass."}</small></p>`).join("")}<p><b>WARNING → ARMED → ACTIVE</b><br>Hazards announce before firing. Block stops most strikes, but throws beat block. Crouch-block stops low attacks.</p></section></div>${button("GOT IT →", "close-panel", "primary cta")}</main>`,
+      )}</tbody></table><p>One controller in versus controls Player 2. Two controllers control Players 1 and 2. Tap attacks; hold block. Biggy’s special charges while held.</p>${isTouch ? "<p><b>ON THIS DEVICE</b><br>The stick moves; push it up to jump and down to crouch. The right-hand cluster is the fight stick: LIGHT, HEAVY, GRAB on top, SPEC, ALT, OC below, BLOCK across the top. Landscape works best, and <i>Add to Home Screen</i> installs the game like an app.</p>" : ""}</section><section><h3>MEET YOUR BAD DECISIONS</h3>${FIGHTERS.map((f) => `<p><b style="color:${f.color}">${f.name}</b> · ${f.special} / ${f.secondary}<br><small>${f.id === "voxxy" ? "Fast jabs and throws. Grab close, then aim toward a hazard." : f.id === "droid" ? "Long reach. Override nearby hazards; beware the wind-up." : f.id === "biggy" ? "Hold special to build momentum. Alternate braces against knockback." : f.id === "richie" ? "Hop to move. Launch with special. Crouch to play dead and evade jabs." : "Special toggles roller mode. Fast kicks, low friction, very little mass."}</small></p>`).join("")}<p><b>WARNING → ARMED → ACTIVE</b><br>Hazards announce before firing. Block stops most strikes, but throws beat block. Crouch-block stops low attacks.</p></section></div>${button("GOT IT →", "close-panel", "primary cta")}</main>`,
   );
 }
 function closePanel() {
@@ -407,17 +480,42 @@ function createPortraits() {
     preserveDrawingBuffer: true,
   });
   r.setSize(360, 400);
+  r.setPixelRatio(Math.min(devicePixelRatio, 2));
   r.toneMapping = T.ACESFilmicToneMapping;
-  r.toneMappingExposure = 1.4;
+  r.toneMappingExposure = 1.2;
   const s = new T.Scene();
-  s.add(new T.HemisphereLight("#e3edff", "#463329", 3));
-  const l = new T.DirectionalLight("#ffe1c5", 4);
+  // The same room environment as the arena: clear-coated plastic needs something to reflect.
+  const pmrem = new T.PMREMGenerator(r);
+  s.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  s.environmentIntensity = 0.7;
+  pmrem.dispose();
+  s.add(new T.HemisphereLight("#e3edff", "#463329", 1.4));
+  const l = new T.DirectionalLight("#ffe1c5", 2.6);
   l.position.set(3, 6, 6);
   s.add(l);
+  const rim = new T.DirectionalLight("#668fff", 1.5);
+  rim.position.set(-4, 3, -5);
+  s.add(rim);
   const c = new T.PerspectiveCamera(35, 0.9, 0.1, 30);
   for (const f of FIGHTERS) {
     const m = robot(f);
-    m.root.rotation.y = -0.3;
+    m.root.rotation.y = 0.55;
+    // A frame of the idle pose, so the portrait matches the fighter in the ring.
+    for (let i = 0; i < 30; i++)
+      m.animate({
+        time: 1 + i / 60,
+        speed: 0,
+        face: 1,
+        attackProgress: 0,
+        hurt: 0,
+        dead: false,
+        block: false,
+        crouch: false,
+        air: false,
+        overclock: false,
+        roller: false,
+      });
+    m.root.rotation.y = 0.55;
     s.add(m.root);
     const h = f.height;
     c.position.set(0, h * 0.64, h * 2.1);
@@ -426,13 +524,20 @@ function createPortraits() {
     portraits[f.id] = r.domElement.toDataURL();
     disposeRobot(m);
   }
+  s.environment?.dispose();
   r.dispose();
 }
 async function boot() {
   try {
-    game = new Game(document.querySelector<HTMLCanvasElement>("#game")!, audio);
+    const boot = document.getElementById("boot");
+    game = new Game(
+      document.querySelector<HTMLCanvasElement>("#game")!,
+      audio,
+      fx,
+    );
     await game.init();
     createPortraits();
+    boot?.remove();
     game.input.menu = (dir, activate) => {
       if (screen === "fight" || screen === "attract") return;
       const buttons = Array.from(
@@ -494,8 +599,8 @@ async function boot() {
       (window as unknown as { rumble: Game }).rumble = game;
   } catch (e) {
     console.error(e);
-    ui.innerHTML =
-      '<div class="modal"><h2>BOOT INTERRUPTED</h2><p>The 3D engine could not start. Use a browser with WebGL 2 and hardware acceleration enabled.</p><button onclick="location.reload()">RETRY</button></div>';
+    // index.html's boot overlay turns the rejection into a readable page.
+    throw e;
   }
 }
 void boot();

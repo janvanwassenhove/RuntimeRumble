@@ -4,7 +4,8 @@ test("boots, selects every fighter, and completes a playable match", async ({
 }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.goto("/");
+  // ?nofx: the software renderer in CI has no time for a bloom pass on every frame.
+  await page.goto("/?nofx");
   await expect(
     page.getByRole("button", { name: /One robot. Five/ }),
   ).toBeVisible();
@@ -138,4 +139,54 @@ test("mobile menu and touch controls remain usable", async ({ page }) => {
     ),
   ).toBe(true);
   await page.screenshot({ path: "test-results/mobile.png" });
+});
+test.describe("phone", () => {
+  // A coarse pointer and touch points: the game switches to the stick and buttons.
+  test.use({
+    hasTouch: true,
+    isMobile: true,
+    viewport: { width: 844, height: 390 },
+  });
+  test("the stick moves the fighter and the buttons attack", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await expect(page.locator("body")).toHaveClass(/touch/);
+    await page.getByRole("button", { name: "TRAINING ROOM", exact: true }).click();
+    await page.getByRole("button", { name: "CHOOSE ARENA →" }).click();
+    await page.getByRole("button", { name: "EXECUTE! ↗" }).click();
+    await expect(page.locator("#touch")).toBeVisible();
+    await expect(page.locator("#stick")).toBeVisible();
+    await page.waitForFunction(() => (window as any).rumble.phase === "fight");
+    await page.screenshot({ path: "test-results/phone-landscape.png" });
+    // Hold the stick to the right: the fighter drifts right.
+    const stick = await page.locator("#stick").boundingBox();
+    const before = await page.evaluate(
+      () => (window as any).rumble.fighters[0].body.translation().x,
+    );
+    const cx = stick!.x + stick!.width / 2,
+      cy = stick!.y + stick!.height / 2;
+    await page.mouse.move(cx, cy);
+    await page.mouse.down();
+    await page.mouse.move(cx + 50, cy, { steps: 5 });
+    await page.waitForTimeout(600);
+    await page.mouse.up();
+    const after = await page.evaluate(
+      () => (window as any).rumble.fighters[0].body.translation().x,
+    );
+    expect(after).toBeGreaterThan(before + 0.5);
+    // A tap on LIGHT registers as an attack.
+    await page.evaluate(() => {
+      const g = (window as any).rumble;
+      g.fighters[0].body.setTranslation({ x: -1, y: 1.2, z: 0 }, true);
+      g.fighters[1].body.setTranslation({ x: 1, y: 1.7, z: 0 }, true);
+    });
+    await page.locator('[data-touch="light"]').tap();
+    await page.waitForFunction(
+      () => (window as any).rumble.fighters[1].hp < 100,
+    );
+    // The menu button in the HUD pauses.
+    await page.locator("#hud .menubtn").tap();
+    await expect(page.getByRole("button", { name: "RESUME →" })).toBeVisible();
+  });
 });
