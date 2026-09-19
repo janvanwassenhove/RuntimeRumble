@@ -280,7 +280,7 @@ export class ArenaVisual {
     for (let s = 0; s < 4; s++) { k.add(new T.BoxGeometry(2, .04, .6), mats.chrome, this.root, {p: [19, .4 + s * .55, BACK + .6]}); for (let j = 0; j < 4; j++) k.add(j % 2 ? new T.CylinderGeometry(.12, .12, .3, 12) : new T.SphereGeometry(.16, 12, 8), j % 2 ? G.orange : mats.chrome, this.root, {p: [18.3 + j * .48, .6 + s * .55, BACK + .6]}); }
     for (const dx of [-1, 1]) k.add(new T.BoxGeometry(.05, 2.3, .6), mats.chrome, this.root, {p: [19 + dx, 1.15, BACK + .6]});
     k.at(-6, .04, -2.8, .8, 1.2); selfDrivingChair(k, this.root); k.at();
-    this.crowd = cheeringCrowd([[-12, 0, -3.2], [12.5, 0, -3.2], [-18.5, 0, -2.6], [18.2, 0, -2.8]].map(([x, y, z]) => ({x, y, z})), 71, ['laptop', 'phone', 'pump', 'clap']);
+    this.crowd = cheeringCrowd([[-12, 0, -3.2], [12.5, 0, -3.2], [-18.5, 0, -2.6], [18.2, 0, -2.8]].map(([x, y, z]) => ({x, y, z})), 71, ['laptop', 'phone', 'laptop', 'clap']);
     this.root.add(this.crowd.group);
     // The reset pad: a lidar ring in the floor that spins up before it wipes a robot's specials.
     this.strip(k, 0, null);

@@ -4,7 +4,8 @@
 // and a fan is a dozen small meshes that move. Proportions are eight heads tall with real
 // shoulders, elbows, knees and hands; faces have eyes, brows, a nose, ears and a mouth that
 // opens when they shout. The fans behind a fight cheer the way developers cheer: fist pumps,
-// jumping, filming on a phone, live-blogging on a laptop, waving a sign, a foam finger.
+// jumping, filming on a phone, hoisting a laptop, waving a sign, a foam finger — and always
+// with both hands up: a crowd of developers, never anything that reads as a salute.
 import * as T from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 
@@ -286,7 +287,7 @@ export function seatedAudience(seats: {x: number; y: number; z: number}[], seed 
 
 // ------------------------------------------------------------------ the fans
 export type CheerStyle = 'arms' | 'pump' | 'jump' | 'phone' | 'sign' | 'clap' | 'laptop' | 'foam' | 'wave';
-const STYLES: CheerStyle[] = ['arms', 'pump', 'jump', 'phone', 'sign', 'clap', 'laptop', 'foam', 'wave', 'arms', 'jump', 'pump'];
+const STYLES: CheerStyle[] = ['arms', 'pump', 'jump', 'phone', 'sign', 'clap', 'laptop', 'foam', 'wave', 'laptop', 'jump', 'pump'];
 /**
  * A standing fan who cheers on their own beat: shoulders, elbows, head and mouth are
  * separate meshes, and what the hands hold depends on the style — a phone filming, a
@@ -321,7 +322,6 @@ export class Fan {
       const f = new T.Mesh(forearmGeo(s, side), peopleMaterial); f.castShadow = true; fo.add(f);
       this.sh.push(sh); this.fore.push(fo);
       if (i === 1) this.prop(fo, s);
-      if (i === 0 && this.style === 'laptop') this.laptop(fo);
     });
     this.legs = [-1, 1].map(side => { const m = new T.Mesh(legGeo(s, side), peopleMaterial); m.position.set(side * .11, HIP, 0); m.castShadow = true; this.group.add(m); return m; });
     this.group.scale.setScalar(s.height);
@@ -346,19 +346,19 @@ export class Fan {
       add(tint(at(box(.44, .3, .012), 0, .62, 0), new T.Color(board).getHex(), .01));
       const text = new T.Mesh(new T.PlaneGeometry(.42, .28), textMaterial(pick(s.r, SIGNS), ink, board, 58)); text.position.set(0, .62, .008); held.add(text);
       const back = text.clone(); back.position.z = -.008; back.rotation.y = Math.PI; held.add(back);
+    } else if (this.style === 'laptop') {
+      // A laptop hoisted overhead in both hands, lid open, its logo lit towards the fight.
+      const grey = pick(s.r, [0xb8b8bc, 0x2a2a2e, 0xd8d5cc]);
+      add(tint(at(box(.34, .015, .24), -.14, .05, -.02), grey, .01));
+      add(tint(at(box(.34, .22, .014), -.14, .17, -.13, .3), grey, .01));
+      const scr = new T.Mesh(new T.PlaneGeometry(.3, .19), screenMaterial); scr.position.set(-.14, .17, -.12); scr.rotation.x = .3; scr.rotation.y = Math.PI; held.add(scr);
+      const logo = new T.Mesh(new T.CircleGeometry(.03, 16), screenMaterial); logo.position.set(-.14, .18, -.138); logo.rotation.x = .3; held.add(logo);
+      for (let i = 0; i < 18; i++) add(tint(at(box(.02, .004, .02), -.25 + (i % 6) * .034, .058, -.06 + Math.floor(i / 6) * .03), 0x1a1a1a, 0));
     } else if (this.style === 'foam') {
       add(tint(at(box(.17, .26, .06), 0, .13, 0), 0xf0752a, .02));
       add(tint(at(box(.06, .15, .06), 0, .33, 0), 0xf0752a, .02));
       const one = new T.Mesh(new T.PlaneGeometry(.15, .2), textMaterial('#1', '#ffffff', null, 90)); one.position.set(0, .13, .032); held.add(one);
     }
-  }
-  /** A laptop balanced on the left forearm, held flat in front, its screen lit. */
-  private laptop(hand: T.Object3D) {
-    const add = (g: T.BufferGeometry, mat: T.Material = peopleMaterial) => { const m = new T.Mesh(g, mat); m.castShadow = true; hand.add(m); return m; };
-    add(tint(at(box(.32, .22, .014), .04, -HAND - .1, .04), 0xa8a8a8, .01));
-    add(tint(at(box(.32, .014, .2), .04, -HAND - .21, .14, .25), 0x9a9a9a, .01));
-    const scr = new T.Mesh(new T.PlaneGeometry(.28, .17), screenMaterial); scr.position.set(.04, -HAND - .2, .14); scr.rotation.x = -Math.PI / 2 + .25; hand.add(scr);
-    for (let i = 0; i < 12; i++) add(tint(at(box(.02, .022, .004), -.07 + (i % 6) * .028, -HAND - .06 - Math.floor(i / 6) * .03, .048), 0x2a2a2a, 0));
   }
   /** `excitement` 0..1 is the arena's; a fan at a fight is never below half. */
   update(t: number, excitement = 0) {
@@ -366,16 +366,17 @@ export class Fan {
     const [L, R] = this.sh, [fL, fR] = this.fore, up = -2.85, s1 = Math.sin(tt * 3), s2 = Math.sin(tt * 4);
     let ax = [0, 0], az = [0, 0], fx = [-.15, -.15], hx = -.1 * e, jump = 0;
     switch (st) {
+      // Both arms always move together: no style ever raises one arm alone.
       // With the arm up the forearm is turned over: a positive elbow bend brings the hand forward.
       case 'arms': ax = [up + s1 * .15, up - s1 * .15]; az = [.35 + s1 * .2, -.35 + s1 * .2]; fx = [.3, .3]; break;
       case 'jump': ax = [up, up]; az = [.5, -.5]; fx = [.2, .2]; jump = Math.abs(Math.sin(tt * 2.2)) * .22 * e; break;
-      case 'pump': ax = [-.25, -2.2 - .5 * (.5 + .5 * s2)]; az = [.5, -.1]; fx = [-1.2, .9 - .5 * (.5 + .5 * s2)]; break;
-      case 'phone': ax = [-.3, -2.35]; az = [.15, -.12]; fx = [-.9, .55]; hx = -.28; break;
+      case 'pump': { const k = .5 + .5 * s2; ax = [-2.2 - .5 * k, -2.2 - .5 * k]; az = [.25, -.25]; fx = [.9 - .5 * k, .9 - .5 * k]; break; }
+      case 'phone': ax = [-2.3, -2.35]; az = [.12, -.12]; fx = [.6, .55]; hx = -.28; break;
       case 'sign': ax = [-2.55 + Math.sin(tt * 2.5) * .22, -2.6 + Math.sin(tt * 2.5) * .22]; az = [.3, -.28]; fx = [.35, .35]; break;
-      case 'clap': { const k = .5 + .5 * Math.sin(tt * 7); ax = [-1.35, -1.35]; az = [.1 + .28 * k, -.1 - .28 * k]; fx = [-1.15, -1.15]; break; }
-      case 'laptop': { const cheer = Math.sin(tt * .45) > .82; ax = [-.5, cheer ? -2.75 : -.55]; az = [.05, cheer ? -.3 : -.15]; fx = [-1.07, cheer ? .3 : -1.3 + Math.sin(tt * 12) * .07]; hx = cheer ? -.2 : .3; break; }
-      case 'foam': ax = [-.2, -2.75 + s1 * .12]; az = [.4, -.3 + s1 * .35]; fx = [-1.1, .25]; break;
-      case 'wave': ax = [-.25, -2.75]; az = [.45, -.2 + s2 * .5]; fx = [-1.0, .3]; break;
+      case 'clap': { const k = .5 + .5 * Math.sin(tt * 7); ax = [-1.55, -1.55]; az = [.1 + .28 * k, -.1 - .28 * k]; fx = [-1.15, -1.15]; break; }
+      case 'laptop': { const w = Math.sin(tt * 2.2) * .3; ax = [-2.6, -2.62]; az = [.28 + w, -.28 + w]; fx = [.35, .35]; hx = -.22; break; }
+      case 'foam': ax = [-2.7 + s1 * .1, -2.75 + s1 * .12]; az = [.3 + s1 * .3, -.3 + s1 * .35]; fx = [.3, .25]; break;
+      case 'wave': ax = [-2.75, -2.75]; az = [.2 + s2 * .5, -.2 + s2 * .5]; fx = [.3, .3]; break;
     }
     L.rotation.x = ax[0]; R.rotation.x = ax[1]; L.rotation.z = az[0]; R.rotation.z = az[1]; fL.rotation.x = fx[0]; fR.rotation.x = fx[1];
     const bob = st === 'jump' ? jump : Math.abs(Math.sin(tt * 2)) * .035 * e;
