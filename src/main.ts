@@ -9,7 +9,7 @@ import * as T from "three";
 import { Game } from "./game";
 import { AudioEngine, loadSettings } from "./audio";
 import { FIGHTERS, ARENAS, FighterId, Mode, fighter } from "./data";
-import { robot } from "./models";
+import { robot, disposeRobot } from "./models";
 const ui = document.querySelector<HTMLDivElement>("#ui")!,
   hud = document.querySelector<HTMLDivElement>("#hud")!,
   announcement = document.querySelector<HTMLDivElement>("#announcement")!,
@@ -424,10 +424,7 @@ function createPortraits() {
     c.lookAt(0, h * 0.5, 0);
     r.render(s, c);
     portraits[f.id] = r.domElement.toDataURL();
-    s.remove(m.root);
-    m.root.traverse((o) => {
-      if (o instanceof T.Mesh) o.geometry.dispose();
-    });
+    disposeRobot(m);
   }
   r.dispose();
 }

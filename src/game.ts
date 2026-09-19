@@ -16,7 +16,7 @@ import {
   matchup,
   neutral,
 } from "./data";
-import { Robot, robot, animateRobot, mat } from "./models";
+import { Robot, robot, animateRobot, mat, disposeRobot } from "./models";
 import { ArenaVisual } from "./arena";
 import { AudioEngine } from "./audio";
 import { Input } from "./input";
@@ -175,9 +175,9 @@ export class Game {
     this.phase = "menu";
     this.cinematic = -1;
     this.audio.active = false;
-    this.fighters.forEach((f) => this.scene.remove(f.model.root));
+    this.fighters.forEach((f) => disposeRobot(f.model));
     this.fighters = [];
-    this.showcase.forEach((r) => this.scene.remove(r.root));
+    this.showcase.forEach(disposeRobot);
     this.showcase = FIGHTERS.map((f, i) => {
       const r = robot(f);
       r.root.position.set((i - 2) * 3.3, 0, 0);
@@ -196,7 +196,7 @@ export class Game {
   ) {
     this.mode = mode;
     this.paused = false;
-    this.showcase.forEach((r) => this.scene.remove(r.root));
+    this.showcase.forEach(disposeRobot);
     this.showcase = [];
     if (newRun) {
       this.stats = this.emptyStats();
@@ -213,7 +213,7 @@ export class Game {
       mode === "chaos" || (mode === "arcade" && this.stage === 4);
   }
   resetRound(a = this.fighters[0].def.id, b = this.fighters[1].def.id) {
-    this.fighters.forEach((f) => this.scene.remove(f.model.root));
+    this.fighters.forEach((f) => disposeRobot(f.model));
     this.world?.free();
     this.world = new R.World({ x: 0, y: -20, z: 0 });
     this.world.timestep = 1 / 60;

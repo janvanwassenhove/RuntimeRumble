@@ -288,3 +288,16 @@ export function animateRobot(r: Robot, p: Pose) {
   )
     r.head.rotation.x = 0.4;
 }
+
+/** Release per-instance GPU resources while preserving the shared robot palette. */
+export function disposeRobot(r: Robot) {
+  r.root.removeFromParent();
+  const materials = new Set<T.Material>();
+  r.root.traverse((o) => {
+    if (!(o instanceof T.Mesh)) return;
+    o.geometry.dispose();
+    for (const m of Array.isArray(o.material) ? o.material : [o.material])
+      if (m !== dark && m !== white && m !== chrome) materials.add(m);
+  });
+  materials.forEach((m) => m.dispose());
+}
