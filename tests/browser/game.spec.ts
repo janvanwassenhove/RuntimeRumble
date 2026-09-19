@@ -140,6 +140,47 @@ test("mobile menu and touch controls remain usable", async ({ page }) => {
   ).toBe(true);
   await page.screenshot({ path: "test-results/mobile.png" });
 });
+test("keys can be rebound from settings and the HUD follows", async ({
+  page,
+}) => {
+  await page.goto("/?nofx");
+  await page.getByRole("button", { name: "⚙ SETTINGS" }).click();
+  await page.getByRole("button", { name: "RESET KEYS TO DEFAULT" }).click();
+  const light = page.locator('[data-bind="0:light"]');
+  await expect(light).toHaveText("J");
+  await light.click();
+  await expect(light).toHaveText("PRESS A KEY…");
+  await page.keyboard.press("f");
+  await expect(light).toHaveText("F");
+  // A key in use swaps: D was MOVE RIGHT, so jump's old W goes to move right.
+  await page.locator('[data-bind="0:jump"]').click();
+  await page.keyboard.press("d");
+  await expect(page.locator('[data-bind="0:jump"]')).toHaveText("D");
+  await expect(page.locator('[data-bind="0:right"]')).toHaveText("W");
+  // Escape cancels a rebind without touching the key.
+  await page.locator('[data-bind="1:grab"]').click();
+  await page.keyboard.press("Escape");
+  await expect(page.locator('[data-bind="1:grab"]')).toHaveText("0");
+  await page.getByRole("button", { name: "SAVE & BACK →" }).click();
+  await page.getByRole("button", { name: "TRAINING ROOM", exact: true }).click();
+  await page.getByRole("button", { name: "CHOOSE ARENA →" }).click();
+  await page.getByRole("button", { name: "EXECUTE! ↗" }).click();
+  await expect(page.locator(".fight-bottom span")).toContainText("F K HIT");
+  await page.waitForFunction(() => (window as any).rumble.phase === "fight");
+  await page.evaluate(() => {
+    const g = (window as any).rumble;
+    g.fighters[0].body.setTranslation({ x: -1, y: 1.2, z: 0 }, true);
+    g.fighters[1].body.setTranslation({ x: 1, y: 1.7, z: 0 }, true);
+  });
+  await page.keyboard.press("f");
+  await page.waitForFunction(() => (window as any).rumble.fighters[1].hp < 100);
+  // The bindings survive a reload, then reset restores J.
+  await page.reload();
+  await page.getByRole("button", { name: "⚙ SETTINGS" }).click();
+  await expect(page.locator('[data-bind="0:light"]')).toHaveText("F");
+  await page.getByRole("button", { name: "RESET KEYS TO DEFAULT" }).click();
+  await expect(page.locator('[data-bind="0:light"]')).toHaveText("J");
+});
 test.describe("phone", () => {
   // A coarse pointer and touch points: the game switches to the stick and buttons.
   test.use({

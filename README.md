@@ -37,6 +37,8 @@ npm run dev
 
 Tap attacks, hold block. Hold Biggy's special to charge. Gamepads can navigate menus with the stick/D-pad and A.
 
+Those are the defaults: every keyboard action for either player can be rebound under **SETTINGS** (click a key, press the new one; a key already in use swaps with the one it replaces, and RESET KEYS restores the table above). Bindings are saved on the device; the HUD and help screen show whatever is current. Gamepad and touch controls are fixed.
+
 ### On a phone or tablet
 
 One build, two editions: the game reads the device and rebuilds its controls around it. On a coarse-pointer device a stick appears on the left (push up to jump, down to crouch) and a fight-stick cluster on the right — LIGHT, HEAVY, GRAB over SPEC, ALT, OC, with BLOCK across the top — plus a MENU button in the HUD to pause. Landscape works best. Input is one path internally: the stick and buttons feed the same controls the keyboard does, so the physics never knows which device it is on.
@@ -68,7 +70,7 @@ Six slices of Kinepolis Antwerp, dressed the way Richie dresses the whole buildi
 - `src/venue.ts`: the venue kit — materials, signage, booths, gadgets, escalators, seats.
 - `src/arena.ts`: the six arena sets, hazards, carts and crowds.
 - `src/people.ts`: the procedural conference crowd.
-- `src/input.ts`: keyboard, touch stick and buttons, controller abstraction.
+- `src/input.ts`, `src/keys.ts`: keyboard (rebindable), touch stick and buttons, controller abstraction.
 - `src/audio.ts`: original Web Audio effects/music and optional browser speech synthesis.
 - `src/main.ts`, `src/style.css`: menus, portraits, HUD, touch layout, settings, results and intro.
 

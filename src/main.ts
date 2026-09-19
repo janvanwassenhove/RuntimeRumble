@@ -12,6 +12,15 @@ import { Game } from "./game";
 import { AudioEngine, loadSettings } from "./audio";
 import { FIGHTERS, ARENAS, FighterId, Mode, fighter } from "./data";
 import { robot, disposeRobot } from "./models";
+import {
+  DEFAULT_KEYS,
+  KEY_ACTIONS,
+  KeyAction,
+  bindKey,
+  eventCode,
+  keyName,
+  saveKeys,
+} from "./keys";
 // Installable and offline after one visit: the service worker precaches every asset.
 registerSW({ immediate: true });
 const ui = document.querySelector<HTMLDivElement>("#ui")!,
@@ -40,6 +49,8 @@ let announcementUntil = 0,
 let cinematicTimer: ReturnType<typeof setInterval> | undefined;
 const portraits: Record<string, string> = {};
 
+/** The current key for an action, as the HUD and help show it. */
+const kn = (player: 0 | 1, a: KeyAction) => keyName(game.input.binds[player][a]);
 function button(text: string, action: string, cls = "") {
   return `<button class="${cls}" data-action="${action}">${text}</button>`;
 }
@@ -87,7 +98,7 @@ function select() {
 function stages() {
   setScreen(
     "stages",
-    `${header(true)}<main class="select-main"><div class="section-top"><div><div class="eyebrow">${fighter(selected).name} ${mode === "versus" ? "vs " + fighter(opponent).name : "IS READY"}</div><h2>THE ARENA IS THE<br><em>SIXTH FIGHTER.</em></h2></div><p>${mode === "arcade" ? "Your run begins in the exhibition hall.<br>Survive to reach the keynote stage." : "Pick somewhere with poor safety standards."}</p></div><div class="arena-grid">${ARENAS.map((a, i) => `<button data-arena="${i}" class="arena-card ${arena === i ? "selected" : ""}" ${mode === "arcade" && i !== 0 ? "disabled" : ""} style="--fighter:${a.color}"><span class="arena-number">0${i + 1}</span><small>${a.label}</small><h3>${a.name}</h3><p>${a.description}</p><span class="hazard-label">⚠ ${a.hazard}</span></button>`).join("")}</div><div class="stage-bottom">${button("← CHANGE MACHINE", "select", "small")}<p>Move <kbd>A</kbd><kbd>D</kbd> · Hit <kbd>J</kbd><kbd>K</kbd> · Special <kbd>L</kbd></p>${button("EXECUTE! ↗", "fight", "primary cta")}</div></main>${footer()}`,
+    `${header(true)}<main class="select-main"><div class="section-top"><div><div class="eyebrow">${fighter(selected).name} ${mode === "versus" ? "vs " + fighter(opponent).name : "IS READY"}</div><h2>THE ARENA IS THE<br><em>SIXTH FIGHTER.</em></h2></div><p>${mode === "arcade" ? "Your run begins in the exhibition hall.<br>Survive to reach the keynote stage." : "Pick somewhere with poor safety standards."}</p></div><div class="arena-grid">${ARENAS.map((a, i) => `<button data-arena="${i}" class="arena-card ${arena === i ? "selected" : ""}" ${mode === "arcade" && i !== 0 ? "disabled" : ""} style="--fighter:${a.color}"><span class="arena-number">0${i + 1}</span><small>${a.label}</small><h3>${a.name}</h3><p>${a.description}</p><span class="hazard-label">⚠ ${a.hazard}</span></button>`).join("")}</div><div class="stage-bottom">${button("← CHANGE MACHINE", "select", "small")}<p>Move <kbd>${kn(0, "left")}</kbd><kbd>${kn(0, "right")}</kbd> · Hit <kbd>${kn(0, "light")}</kbd><kbd>${kn(0, "heavy")}</kbd> · Special <kbd>${kn(0, "special")}</kbd></p>${button("EXECUTE! ↗", "fight", "primary cta")}</div></main>${footer()}`,
   );
 }
 function launch() {
@@ -109,7 +120,7 @@ function launch() {
   makeTouch();
 }
 function makeHud() {
-  hud.innerHTML = `<div class="hud-top"><div class="fighter-hud"><div class="hud-name"><span id="name0"></span><small>PLAYER 01</small></div><div class="integrity"><div id="hp0"></div></div><div class="hud-sub"><span id="rounds0"></span><span id="health0"></span></div><div class="oc"><div id="oc0"></div></div><small id="oclabel0">OVERCLOCK</small></div><div class="timer-box"><small>ROUND <span id="round-number">1</span></small><strong id="timer">75</strong><small>BEST OF THREE</small>${button("Ⅱ MENU", "pause", "small menubtn")}</div><div class="fighter-hud right"><div class="hud-name"><span id="name1"></span><small>${mode === "versus" ? "PLAYER 02" : mode === "training" ? "TRAINING DUMMY" : "CPU"}</small></div><div class="integrity"><div id="hp1"></div></div><div class="hud-sub"><span id="rounds1"></span><span id="health1"></span></div><div class="oc"><div id="oc1"></div></div><small id="oclabel1">OVERCLOCK</small></div></div><div class="arena-hud"><span id="arena-label"></span><span id="hazard-status"></span></div><div class="fight-bottom"><span><kbd>A D</kbd> MOVE <kbd>W</kbd> JUMP <kbd>J K</kbd> HIT <kbd>L I</kbd> SPECIAL <kbd>U</kbd> GRAB <kbd>SPACE</kbd> BLOCK <kbd>O</kbd> OVERCLOCK</span>${button("Ⅱ PAUSE", "pause", "small")}</div>`;
+  hud.innerHTML = `<div class="hud-top"><div class="fighter-hud"><div class="hud-name"><span id="name0"></span><small>PLAYER 01</small></div><div class="integrity"><div id="hp0"></div></div><div class="hud-sub"><span id="rounds0"></span><span id="health0"></span></div><div class="oc"><div id="oc0"></div></div><small id="oclabel0">OVERCLOCK</small></div><div class="timer-box"><small>ROUND <span id="round-number">1</span></small><strong id="timer">75</strong><small>BEST OF THREE</small>${button("Ⅱ MENU", "pause", "small menubtn")}</div><div class="fighter-hud right"><div class="hud-name"><span id="name1"></span><small>${mode === "versus" ? "PLAYER 02" : mode === "training" ? "TRAINING DUMMY" : "CPU"}</small></div><div class="integrity"><div id="hp1"></div></div><div class="hud-sub"><span id="rounds1"></span><span id="health1"></span></div><div class="oc"><div id="oc1"></div></div><small id="oclabel1">OVERCLOCK</small></div></div><div class="arena-hud"><span id="arena-label"></span><span id="hazard-status"></span></div><div class="fight-bottom"><span><kbd>${kn(0, "left")} ${kn(0, "right")}</kbd> MOVE <kbd>${kn(0, "jump")}</kbd> JUMP <kbd>${kn(0, "light")} ${kn(0, "heavy")}</kbd> HIT <kbd>${kn(0, "special")} ${kn(0, "secondary")}</kbd> SPECIAL <kbd>${kn(0, "grab")}</kbd> GRAB <kbd>${kn(0, "block")}</kbd> BLOCK <kbd>${kn(0, "overclock")}</kbd> OVERCLOCK</span>${button("Ⅱ PAUSE", "pause", "small")}</div>`;
   hud.querySelectorAll("button").forEach((b) => (b.onclick = pause));
 }
 // Touch: a stick on the left feeds the same move/jump/crouch the keys do, and a fight-stick
@@ -209,7 +220,7 @@ function updateHud() {
         : f.oc > 0
           ? f.def.overclock
           : f.meter >= 100
-            ? "OVERCLOCK READY · " + (i === 0 ? "O / RT" : "5 / RT")
+            ? "OVERCLOCK READY · " + kn(i as 0 | 1, "overclock") + " / RT"
             : "OVERCLOCK";
   });
   document.getElementById("timer")!.textContent =
@@ -289,13 +300,32 @@ function results(winner: number) {
   );
 }
 let returnScreen = "home";
+/** The rebind in progress: which button is waiting for a key. */
+let binding: { player: 0 | 1; action: KeyAction } | null = null;
+function keymap() {
+  const on = (p: number, a: KeyAction) =>
+    binding && binding.player === p && binding.action === a;
+  return `<section class="keymap"><div class="eyebrow">KEYBOARD · CLICK A KEY, THEN PRESS THE NEW ONE</div><div class="keymap-grid">${([0, 1] as const)
+    .map(
+      (p) =>
+        `<div><h4>PLAYER 0${p + 1}</h4>${KEY_ACTIONS.map(
+          (a) =>
+            `<label>${a.label}<button data-bind="${p}:${a.id}" class="${on(p, a.id) ? "listening" : ""}" aria-label="${a.label} player ${p + 1}">${on(p, a.id) ? "PRESS A KEY…" : keyName(game.input.binds[p][a.id])}</button></label>`,
+        ).join("")}</div>`,
+    )
+    .join("")}</div><p>A key already in use swaps with the one it replaces. Esc cancels; Esc and Enter cannot be bound. Gamepads and touch controls are fixed.</p>${button("RESET KEYS TO DEFAULT", "reset-keys", "small")}</section>`;
+}
 function settings() {
   if (screen === "fight") pause();
-  returnScreen = screen;
+  if (screen !== "settings") returnScreen = screen;
+  binding = null;
+  renderSettings();
+}
+function renderSettings() {
   const s = audio.settings;
   setScreen(
     "settings",
-    `${header()}<div class="modal settings-modal"><div class="eyebrow">CABINET CONFIGURATION</div><h2>YOUR <em>RULES.</em></h2>${(["master", "music", "announcer"] as const).map((k) => `<label>${k.toUpperCase()} VOLUME <input aria-label="${k} volume" data-setting="${k}" type="range" min="0" max="1" step="0.05" value="${s[k]}"></label>`).join("")}<label class="check">REDUCED CAMERA SHAKE <input type="checkbox" data-setting="reducedShake" ${s.reducedShake ? "checked" : ""}></label><label>CPU DIFFICULTY <select data-setting="difficulty"><option value="0" ${s.difficulty === 0 ? "selected" : ""}>Friendly chaos</option><option value="1" ${s.difficulty === 1 ? "selected" : ""}>Standard issue</option><option value="2" ${s.difficulty === 2 ? "selected" : ""}>Production incident</option></select></label><p>Settings are saved on this device.</p>${button("SAVE & BACK →", "close-panel", "primary cta")}</div>`,
+    `${header()}<div class="modal settings-modal"><div class="eyebrow">CABINET CONFIGURATION</div><h2>YOUR <em>RULES.</em></h2>${(["master", "music", "announcer"] as const).map((k) => `<label>${k.toUpperCase()} VOLUME <input aria-label="${k} volume" data-setting="${k}" type="range" min="0" max="1" step="0.05" value="${s[k]}"></label>`).join("")}<label class="check">REDUCED CAMERA SHAKE <input type="checkbox" data-setting="reducedShake" ${s.reducedShake ? "checked" : ""}></label><label>CPU DIFFICULTY <select data-setting="difficulty"><option value="0" ${s.difficulty === 0 ? "selected" : ""}>Friendly chaos</option><option value="1" ${s.difficulty === 1 ? "selected" : ""}>Standard issue</option><option value="2" ${s.difficulty === 2 ? "selected" : ""}>Production incident</option></select></label>${keymap()}<p>Settings are saved on this device.</p>${button("SAVE & BACK →", "close-panel", "primary cta")}</div>`,
   );
   ui.querySelectorAll<HTMLInputElement | HTMLSelectElement>(
     "[data-setting]",
@@ -316,27 +346,63 @@ function settings() {
         audio.unlock();
       }),
   );
+  ui.querySelectorAll<HTMLButtonElement>("[data-bind]").forEach((b) => {
+    b.onclick = (e) => {
+      e.stopPropagation();
+      const [p, a] = b.dataset.bind!.split(":");
+      binding = { player: Number(p) as 0 | 1, action: a as KeyAction };
+      renderSettings();
+      ui.querySelector<HTMLButtonElement>("button.listening")?.focus();
+    };
+  });
 }
+// The rebind listener runs before the game's own key handling and swallows the key.
+window.addEventListener(
+  "keydown",
+  (e) => {
+    if (!binding || screen !== "settings") return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const code = eventCode(e);
+    if (code !== "Escape") {
+      if (!bindKey(game.input.binds, binding.player, binding.action, code))
+        return;
+      saveKeys(game.input.binds);
+      audio.tone(520, 0.06, "sine", 0.1, 240);
+    }
+    binding = null;
+    renderSettings();
+  },
+  true,
+);
 function help() {
   if (screen === "fight") pause();
   returnScreen = screen;
   setScreen(
     "help",
-    `${header()}<main class="help-main"><div class="eyebrow">READ THIS BEFORE THE INCIDENT</div><h2>FIGHT. CRASH. <em>REBOOT.</em></h2><p>Win two rounds. Empty their integrity bar. Use the warning strip to launch them into a bad day.</p><div class="help-columns"><section><h3>CONTROLS</h3><table><thead><tr><th>ACTION</th><th>PLAYER 1</th><th>PLAYER 2</th><th>GAMEPAD</th></tr></thead><tbody>${[
-      ["Move", "A / D", "← / →", "Stick / D-pad"],
-      ["Jump", "W", "↑", "Y / △"],
-      ["Crouch / low hit", "S + J/K", "↓ + 1/2", "Down + A/B"],
-      ["Light / heavy", "J / K", "1 / 2", "A / B"],
-      ["Special / alternate", "L / I", "3 / 4", "X / LT"],
-      ["Grab", "U", "0", "RB"],
-      ["Block", "Space", "Right Shift", "LB"],
-      ["Overclock", "O", "5", "RT"],
-      ["Pause", "Esc", "Esc", "Start"],
-    ]
+    `${header()}<main class="help-main"><div class="eyebrow">READ THIS BEFORE THE INCIDENT</div><h2>FIGHT. CRASH. <em>REBOOT.</em></h2><p>Win two rounds. Empty their integrity bar. Use the warning strip to launch them into a bad day.</p><div class="help-columns"><section><h3>CONTROLS</h3><table><thead><tr><th>ACTION</th><th>PLAYER 1</th><th>PLAYER 2</th><th>GAMEPAD</th></tr></thead><tbody>${(
+      [
+        ["Move", ["left", "right"], "Stick / D-pad"],
+        ["Jump", ["jump"], "Y / △"],
+        ["Crouch / low hit", ["crouch"], "Down + A/B"],
+        ["Light / heavy", ["light", "heavy"], "A / B"],
+        ["Special / alternate", ["special", "secondary"], "X / LT"],
+        ["Grab", ["grab"], "RB"],
+        ["Block", ["block"], "LB"],
+        ["Overclock", ["overclock"], "RT"],
+      ] as [string, KeyAction[], string][]
+    )
+      .map(([name, acts, pad]) => [
+        name,
+        acts.map((a) => kn(0, a)).join(" / "),
+        acts.map((a) => kn(1, a)).join(" / "),
+        pad,
+      ])
+      .concat([["Pause", "Esc", "Esc", "Start"]])
       .map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join("")}</tr>`)
       .join(
         "",
-      )}</tbody></table><p>One controller in versus controls Player 2. Two controllers control Players 1 and 2. Tap attacks; hold block. Biggy’s special charges while held.</p>${isTouch ? "<p><b>ON THIS DEVICE</b><br>The stick moves; push it up to jump and down to crouch. The right-hand cluster is the fight stick: LIGHT, HEAVY, GRAB on top, SPEC, ALT, OC below, BLOCK across the top. Landscape works best, and <i>Add to Home Screen</i> installs the game like an app.</p>" : ""}</section><section><h3>MEET YOUR BAD DECISIONS</h3>${FIGHTERS.map((f) => `<p><b style="color:${f.color}">${f.name}</b> · ${f.special} / ${f.secondary}<br><small>${f.id === "voxxy" ? "Fast jabs and throws. Grab close, then aim toward a hazard." : f.id === "droid" ? "Long reach. Override nearby hazards; beware the wind-up." : f.id === "biggy" ? "Hold special to build momentum. Alternate braces against knockback." : f.id === "richie" ? "Hop to move. Launch with special. Crouch to play dead and evade jabs." : "Special toggles roller mode. Fast kicks, low friction, very little mass."}</small></p>`).join("")}<p><b>WARNING → ARMED → ACTIVE</b><br>Hazards announce before firing. Block stops most strikes, but throws beat block. Crouch-block stops low attacks.</p></section></div>${button("GOT IT →", "close-panel", "primary cta")}</main>`,
+      )}</tbody></table><p>One controller in versus controls Player 2. Two controllers control Players 1 and 2. Tap attacks; hold block. Biggy’s special charges while held. Keys can be changed under <b>SETTINGS</b>.</p>${isTouch ? "<p><b>ON THIS DEVICE</b><br>The stick moves; push it up to jump and down to crouch. The right-hand cluster is the fight stick: LIGHT, HEAVY, GRAB on top, SPEC, ALT, OC below, BLOCK across the top. Landscape works best, and <i>Add to Home Screen</i> installs the game like an app.</p>" : ""}</section><section><h3>MEET YOUR BAD DECISIONS</h3>${FIGHTERS.map((f) => `<p><b style="color:${f.color}">${f.name}</b> · ${f.special} / ${f.secondary}<br><small>${f.id === "voxxy" ? "Fast jabs and throws. Grab close, then aim toward a hazard." : f.id === "droid" ? "Long reach. Override nearby hazards; beware the wind-up." : f.id === "biggy" ? "Hold special to build momentum. Alternate braces against knockback." : f.id === "richie" ? "Hop to move. Launch with special. Crouch to play dead and evade jabs." : "Special toggles roller mode. Fast kicks, low friction, very little mass."}</small></p>`).join("")}<p><b>WARNING → ARMED → ACTIVE</b><br>Hazards announce before firing. Block stops most strikes, but throws beat block. Crouch-block stops low attacks.</p></section></div>${button("GOT IT →", "close-panel", "primary cta")}</main>`,
   );
 }
 function closePanel() {
@@ -458,6 +524,12 @@ ui.addEventListener("click", (e) => {
       break;
     case "settings":
       settings();
+      break;
+    case "reset-keys":
+      game.input.binds = [{ ...DEFAULT_KEYS[0] }, { ...DEFAULT_KEYS[1] }];
+      saveKeys(game.input.binds);
+      binding = null;
+      renderSettings();
       break;
     case "help":
       help();

@@ -1,4 +1,11 @@
 import { Controls, neutral } from "./data";
+import {
+  Bindings,
+  KEY_ACTIONS,
+  KeyAction,
+  loadKeys,
+  sameKey,
+} from "./keys";
 export class Input {
   keys = new Set<string>();
   taps = new Set<string>();
@@ -12,7 +19,8 @@ export class Input {
   padPrevious: boolean[][] = [];
   menu: (direction: number, activate: boolean) => void = () => {};
   menuClock = 0;
-  constructor() {
+  /** Keyboard bindings per player, rebound from the settings screen. */
+  constructor(public binds: [Bindings, Bindings] = loadKeys()) {
     window.addEventListener("keydown", (e) => {
       if ((e.target as HTMLElement).matches("input,select,textarea")) return;
       this.lastActivity = performance.now();
@@ -46,32 +54,24 @@ export class Input {
     const c = neutral(),
       k = new Set([...this.keys, ...this.taps]),
       t = new Set([...this.touch, ...this.touchTaps]),
-      yes = (code: string, action: string) =>
-        k.has(code) || (player === 0 && t.has(action));
-    if (player === 0) {
-      const sx = Math.abs(this.stick.x) > 0.3 ? Math.sign(this.stick.x) : 0;
-      c.move = +yes("KeyD", "right") - +yes("KeyA", "left") || sx;
-      c.jump = yes("KeyW", "jump") || this.stick.y < -0.55;
-      c.crouch = yes("KeyS", "crouch") || this.stick.y > 0.55;
-      c.block = yes("Space", "block");
-      c.light = yes("KeyJ", "light");
-      c.heavy = yes("KeyK", "heavy");
-      c.special = yes("KeyL", "special");
-      c.secondary = yes("KeyI", "secondary");
-      c.grab = yes("KeyU", "grab");
-      c.overclock = yes("KeyO", "overclock");
-    } else {
-      c.move = +k.has("ArrowRight") - +k.has("ArrowLeft");
-      c.jump = k.has("ArrowUp");
-      c.crouch = k.has("ArrowDown");
-      c.block = k.has("ShiftRight");
-      c.light = k.has("Numpad1") || k.has("Digit1");
-      c.heavy = k.has("Numpad2") || k.has("Digit2");
-      c.special = k.has("Numpad3") || k.has("Digit3");
-      c.grab = k.has("Numpad0") || k.has("Digit0");
-      c.secondary = k.has("Numpad4") || k.has("Digit4");
-      c.overclock = k.has("Numpad5") || k.has("Digit5");
-    }
+      b = this.binds[player],
+      held = (code: string) => {
+        for (const key of k) if (sameKey(key, code)) return true;
+        return false;
+      },
+      on = (a: KeyAction) => held(b[a]) || (player === 0 && t.has(a));
+    const stick = player === 0 ? this.stick : { x: 0, y: 0 },
+      sx = Math.abs(stick.x) > 0.3 ? Math.sign(stick.x) : 0;
+    c.move = +on("right") - +on("left") || sx;
+    c.jump = on("jump") || stick.y < -0.55;
+    c.crouch = on("crouch") || stick.y > 0.55;
+    c.block = on("block");
+    c.light = on("light");
+    c.heavy = on("heavy");
+    c.special = on("special");
+    c.secondary = on("secondary");
+    c.grab = on("grab");
+    c.overclock = on("overclock");
     const pads = Array.from(navigator.getGamepads?.() || []).filter(
       Boolean,
     ) as Gamepad[];
@@ -99,22 +99,11 @@ export class Input {
       c.overclock ||= b(7);
       if (Object.values(c).some(Boolean)) this.lastActivity = performance.now();
     }
-    const firstPlayerKeys = [
-      "KeyA",
-      "KeyD",
-      "KeyW",
-      "KeyS",
-      "Space",
-      "KeyJ",
-      "KeyK",
-      "KeyL",
-      "KeyI",
-      "KeyU",
-      "KeyO",
-    ];
+    // A tap is consumed by the player it belongs to; a tap bound to nobody by anyone.
+    const bound = (p: number, key: string) =>
+      KEY_ACTIONS.some((a) => sameKey(key, this.binds[p][a.id]));
     for (const key of this.taps)
-      if ((player === 0) === firstPlayerKeys.includes(key))
-        this.taps.delete(key);
+      if (bound(player, key) || !bound(1 - player, key)) this.taps.delete(key);
     if (player === 0) this.touchTaps.clear();
     return c;
   }
