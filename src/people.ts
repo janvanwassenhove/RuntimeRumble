@@ -56,8 +56,8 @@ const capsule = (r: number, len: number) => new T.CapsuleGeometry(r, len, 4, 12)
 const tube = (r: number, len: number) => new T.CylinderGeometry(r, r, len, 10);
 const merge = (parts: T.BufferGeometry[]) => mergeGeometries(parts.map(g => g.index ? g.toNonIndexed() : g), false)!;
 /** Matte and glossy geometry for one person, kept apart so each goes to its material. */
-type Parts = {m: T.BufferGeometry[]; g: T.BufferGeometry[]};
-const parts = (): Parts => ({m: [], g: []});
+type Parts = {m: T.BufferGeometry[]; g: T.BufferGeometry[]; s: T.BufferGeometry[]};
+const parts = (): Parts => ({m: [], g: [], s: []});
 
 export type Spec = ReturnType<typeof spec>;
 export function spec(seed: number) {
@@ -170,16 +170,28 @@ export function headParts(s: Spec, mouth = true) {
   if (s.cap) { m.push(tint(at(ball(.18), 0, Y(HEAD + .04), 0, 0, 0, 0, 1, .7, 1), s.top)); m.push(tint(at(box(.2, .015, .16), 0, Y(HEAD + .1), .2), s.top)); }
   return o;
 }
-/** A whole standing person as static geometry, limbs posed by the caller's angles. */
-function personParts(s: Spec, pose: {armX: [number, number]; armZ?: [number, number]; foreX?: [number, number]; legX?: number; knee?: number} = {armX: [0, 0]}) {
+type Pose = {armX: [number, number]; armZ?: [number, number]; foreX?: [number, number]; foreZ?: [number, number]; legX?: number; knee?: number; headX?: number; headY?: number; props?: ('coffee' | 'laptop' | 'phone' | null)[]; lapTop?: boolean};
+/** A whole person as static geometry, limbs posed by the caller's angles. */
+function personParts(s: Spec, pose: Pose = {armX: [0, 0]}) {
   const o = parts(), t = torsoParts(s), h = headParts(s);
-  o.m.push(...t.m, ...h.m.map(g => at(g, 0, NECK, 0))); o.g.push(...h.g.map(g => at(g, 0, NECK, 0)));
+  o.m.push(...t.m, ...h.m.map(g => at(g, 0, NECK, 0, pose.headX ?? 0, pose.headY ?? 0))); o.g.push(...h.g.map(g => at(g, 0, NECK, 0, pose.headX ?? 0, pose.headY ?? 0)));
   [-1, 1].forEach((side, i) => {
-    const fore = at(forearmGeo(s, side, i && s.coffee ? 'coffee' : !i && s.laptop ? 'laptop' : !i && s.phone ? 'phone' : null), 0, -ELBOW, 0, pose.foreX?.[i] ?? 0);
+    const prop = pose.props ? pose.props[i] : i && s.coffee ? 'coffee' : !i && s.laptop ? 'laptop' : !i && s.phone ? 'phone' : null;
+    const fore = at(forearmGeo(s, side, prop), 0, -ELBOW, 0, pose.foreX?.[i] ?? 0, 0, pose.foreZ?.[i] ?? 0);
     o.m.push(at(merge([upperArmGeo(s, side), fore]), side * .27 * s.wide, SHOULDER, 0, pose.armX[i], 0, pose.armZ?.[i] ?? 0));
     o.m.push(at(legGeo(s, side, pose.knee ?? 0), side * .11, HIP, 0, pose.legX ?? 0));
   });
+  if (pose.lapTop) lapTopParts(o);
   return o;
+}
+/** An open laptop on the knees of someone sitting, its screen towards them, its logo lit. */
+function lapTopParts(o: Parts) {
+  const grey = 0xb4b4b8;
+  o.m.push(tint(at(box(.32, .015, .22), 0, HIP + .05, .3), grey, .01));
+  o.m.push(tint(at(box(.32, .21, .014), 0, HIP + .15, .41, -.3), grey, .01));
+  for (let i = 0; i < 18; i++) o.m.push(tint(at(box(.02, .004, .02), -.1 + (i % 6) * .04, HIP + .058, .24 + Math.floor(i / 6) * .035), 0x1a1a1a, 0));
+  o.s.push(at(new T.PlaneGeometry(.28, .17), 0, HIP + .15, .402, -.3 + Math.PI));
+  o.s.push(at(new T.CircleGeometry(.025, 14), 0, HIP + .16, .418, -.3));
 }
 const textures = new Map<string, T.Material>();
 function textMaterial(text: string, fg = '#ffffff', bg: string | null = null, size = 64) {
@@ -201,7 +213,7 @@ function textMaterial(text: string, fg = '#ffffff', bg: string | null = null, si
 const shirtMaterial = (text: string) => textMaterial(text);
 function meshes(o: Parts, parent: T.Object3D, shadows = true) {
   const out: T.Mesh[] = [];
-  for (const [list, mat] of [[o.m, peopleMaterial], [o.g, glossMaterial]] as const) {
+  for (const [list, mat] of [[o.m, peopleMaterial], [o.g, glossMaterial], [o.s, screenMaterial]] as const) {
     if (!list.length) continue;
     const q = new T.Mesh(merge(list), mat); q.castShadow = shadows; q.receiveShadow = shadows; parent.add(q); out.push(q);
   }
@@ -267,27 +279,47 @@ export class Walker {
   }
 }
 
-/** One merged pair of meshes for a whole seated audience: rows of people on cinema seats. */
-export function seatedAudience(seats: {x: number; y: number; z: number}[], seed = 7) {
-  const r = rng(seed), all = parts();
+const BEND = Math.PI / 2 - .15;
+/** How someone sits: hands in the lap, on the armrests, folded, a phone, a laptop, chin on a hand, arms up. */
+const SEATED_POSES: ((r: () => number) => Pose)[] = [
+  r => ({armX: [-.3, -.3], armZ: [.14, -.14], foreX: [-1.3 - r() * .2, -1.3 - r() * .2], headY: (r() - .5) * .4}),                       // hands in the lap
+  r => ({armX: [-.1, -.1], armZ: [.42, -.42], foreX: [-1.55, -1.55], headY: (r() - .5) * .5}),                                              // elbows on the armrests
+  r => ({armX: [-.55, -.55], armZ: [.75, -.75], foreX: [-2.0, -2.0], foreZ: [-.9, .9], headX: .04, headY: (r() - .5) * .3}),                // arms folded
+  r => ({armX: [-.35, -.35], armZ: [.1, -.12], foreX: [-1.5, -1.65], headX: .42, props: [null, 'phone']}),                                  // on a phone, head down
+  () => ({armX: [-.3, -.3], armZ: [.12, -.12], foreX: [-1.3, -1.3], headX: .36, lapTop: true, props: [null, null]}),                         // typing on a laptop
+  r => ({armX: [-.15, -.5], armZ: [.4, -.12], foreX: [-1.5, -2.35], headX: .08, headY: .2 + r() * .2}),                                     // chin on a hand
+  r => ({armX: [-.4, -.35], armZ: [.15, -.3], foreX: [-1.35, -1.2], headY: -.5 - r() * .3}),                                                // turned to a neighbour
+  r => ({armX: [-2.7, -2.8], armZ: [.3, -.3], foreX: [.25, .25], headX: -.15, headY: (r() - .5) * .3}),                                    // arms up
+];
+/**
+ * A seated audience: the rows nearest the fight are individually animated fans, the rest
+ * one merged pair of meshes in varied, natural poses. Same shape as a cheering crowd.
+ */
+export function seatedAudience(seats: {x: number; y: number; z: number}[], seed = 7, animated = 28) {
+  const r = rng(seed), all = parts(), group = new T.Group(), fans: Fan[] = [];
+  // The nearest, most central seats are the ones the camera sees: those get the live fans.
+  const near = [...seats].map((sp, i) => ({sp, i, d: sp.y * 6 + Math.abs(sp.x) * .35})).sort((a, b) => a.d - b.d).slice(0, Math.round(animated * 1.4)).map(x => x.i);
   seats.forEach((seat, i) => {
     if (r() > .62) return; // a keynote never fills the room
-    const s = spec(seed * 977 + i), h = s.height, yaw = (r() - .5) * .3, bend = Math.PI / 2 - .15;
-    // Hips on the seat, thighs forward, shins down, forearms in the lap; a few with their arms up.
-    const up = r() < .2;
-    const o = personParts(s, {armX: up ? [-2.7, -2.8] : [-.9, -.9], armZ: up ? [.3, -.3] : [.15, -.15], foreX: up ? [-.2, -.2] : [-.9, -.9], legX: -bend, knee: bend});
-    for (const g of [...o.m, ...o.g]) at(g, 0, -.53, 0);
-    for (const list of [o.m, o.g]) for (const g of list) at(g, seat.x, seat.y - .45, seat.z, 0, yaw, 0, h);
-    all.m.push(...o.m); all.g.push(...o.g);
+    const s = spec(seed * 977 + i), h = s.height, yaw = (r() - .5) * .3;
+    if (near.includes(i) && fans.length < animated) {
+      const f = new Fan(seed * 977 + i, seat.x, seat.y - .45 - .53 * h, seat.z, yaw, undefined, true);
+      group.add(f.group); fans.push(f);
+      return;
+    }
+    const o = personParts(s, {...pick(r, SEATED_POSES)(r), legX: -BEND, knee: BEND});
+    for (const list of [o.m, o.g, o.s]) for (const g of list) { at(g, 0, -.53, 0); at(g, seat.x, seat.y - .45, seat.z, 0, yaw, 0, h); }
+    all.m.push(...o.m); all.g.push(...o.g); all.s.push(...o.s);
   });
-  const group = new T.Group();
   meshes(all, group);
-  return group;
+  return {group, fans, update(t: number, excitement = 0) { for (const f of fans) f.update(t, excitement); }};
 }
 
 // ------------------------------------------------------------------ the fans
-export type CheerStyle = 'arms' | 'pump' | 'jump' | 'phone' | 'sign' | 'clap' | 'laptop' | 'foam' | 'wave';
+export type CheerStyle = 'arms' | 'pump' | 'jump' | 'phone' | 'sign' | 'clap' | 'laptop' | 'foam' | 'wave' | 'rest' | 'chat' | 'type' | 'scroll';
 const STYLES: CheerStyle[] = ['arms', 'pump', 'jump', 'phone', 'sign', 'clap', 'laptop', 'foam', 'wave', 'laptop', 'jump', 'pump'];
+/** Sitting down: mostly watching, some typing or scrolling, a few clapping or with their arms up. */
+const SEATED_STYLES: CheerStyle[] = ['rest', 'rest', 'rest', 'chat', 'type', 'type', 'scroll', 'clap', 'clap', 'arms', 'wave', 'rest'];
 /**
  * A standing fan who cheers on their own beat: shoulders, elbows, head and mouth are
  * separate meshes, and what the hands hold depends on the style — a phone filming, a
@@ -305,9 +337,9 @@ export class Fan {
   private rate: number;
   private base: number;
   private lean: number;
-  constructor(seed: number, x: number, y: number, z: number, yaw = 0, style?: CheerStyle) {
+  constructor(seed: number, x: number, y: number, z: number, yaw = 0, style?: CheerStyle, public seated = false) {
     const s = spec(seed), r = s.r;
-    this.style = style ?? pick(r, STYLES);
+    this.style = style ?? pick(r, seated ? SEATED_STYLES : STYLES);
     this.phase = r() * 20; this.rate = .85 + r() * .4; this.base = y; this.lean = (r() - .5) * .08;
     const [body] = meshes(torsoParts(s), this.group);
     if (s.text && !s.hoodie) { const q = new T.Mesh(new T.PlaneGeometry(.28, .28), shirtMaterial(s.text)); q.position.set(0, HIP + .53, .155); body.add(q); }
@@ -323,7 +355,8 @@ export class Fan {
       this.sh.push(sh); this.fore.push(fo);
       if (i === 1) this.prop(fo, s);
     });
-    this.legs = [-1, 1].map(side => { const m = new T.Mesh(legGeo(s, side), peopleMaterial); m.position.set(side * .11, HIP, 0); m.castShadow = true; this.group.add(m); return m; });
+    this.legs = [-1, 1].map(side => { const m = new T.Mesh(legGeo(s, side, seated ? BEND : 0), peopleMaterial); m.position.set(side * .11, HIP, 0); if (seated) m.rotation.x = -BEND; m.castShadow = true; this.group.add(m); return m; });
+    if (this.style === 'type') { const o = parts(); lapTopParts(o); meshes(o, this.group, false); }
     this.group.scale.setScalar(s.height);
     this.group.position.set(x, y, z);
     this.group.rotation.y = yaw;
@@ -336,7 +369,12 @@ export class Fan {
   private prop(hand: T.Object3D, s: Spec) {
     const held = new T.Group(); held.position.y = -HAND; held.rotation.x = Math.PI; hand.add(held);
     const add = (g: T.BufferGeometry, mat: T.Material = peopleMaterial) => { const m = new T.Mesh(g, mat); m.castShadow = true; held.add(m); return m; };
-    if (this.style === 'phone') {
+    if (this.style === 'scroll') {
+      // A phone in the lap: the forearm is not turned over here, so this one is built in hand space.
+      held.rotation.x = 0; held.position.y = -HAND - .06;
+      add(tint(at(box(.072, .15, .009), 0, 0, .02), 0x15151a, .01), glossMaterial);
+      const scr = new T.Mesh(new T.PlaneGeometry(.062, .13), screenMaterial); scr.position.set(0, 0, .026); held.add(scr);
+    } else if (this.style === 'phone') {
       add(tint(at(box(.072, .15, .009), 0, .1, 0), 0x15151a, .01), glossMaterial);
       add(tint(at(ball(.008, 8), .022, .15, .006), 0x222233, 0), glossMaterial);                             // the lens, on the fight
       const scr = new T.Mesh(new T.PlaneGeometry(.062, .13), screenMaterial); scr.position.set(0, .1, -.005); scr.rotation.y = Math.PI; held.add(scr);
@@ -362,6 +400,7 @@ export class Fan {
   }
   /** `excitement` 0..1 is the arena's; a fan at a fight is never below half. */
   update(t: number, excitement = 0) {
+    if (this.seated) return this.updateSeated(t, excitement);
     const e = .5 + .5 * Math.min(1, excitement), tt = t * this.rate + this.phase, st = this.style;
     const [L, R] = this.sh, [fL, fR] = this.fore, up = -2.85, s1 = Math.sin(tt * 3), s2 = Math.sin(tt * 4);
     let ax = [0, 0], az = [0, 0], fx = [-.15, -.15], hx = -.1 * e, jump = 0;
@@ -389,6 +428,30 @@ export class Fan {
     // The shout: the mouth opens on the beat, wider the more excited they are.
     const open = Math.max(0, Math.sin(tt * 3)) * e;
     this.mouth.scale.set(1.2 + open * .5, .3 + open * 1.9, .5 + open * .5);
+  }
+  /** Sitting: small, slow movements — a look around, a shift in the seat — and what the hands are doing. */
+  private updateSeated(t: number, excitement: number) {
+    const e = Math.min(1, excitement), tt = t * this.rate + this.phase, st = this.style;
+    const [L, R] = this.sh, [fL, fR] = this.fore, slow = Math.sin(tt * .6), s2 = Math.sin(tt * 1.3);
+    let ax = [-.3, -.3], az = [.14, -.14], fx = [-1.35, -1.35], hx = .02 + slow * .03, hy = Math.sin(tt * .35) * .35, open = 0, lean = 0;
+    switch (st) {
+      case 'rest': ax = [-.12 + slow * .04, -.12 - slow * .04]; az = [.4, -.4]; fx = [-1.55 + s2 * .05, -1.55 - s2 * .05]; lean = Math.max(0, Math.sin(tt * .25)) * .12; break;
+      case 'chat': { const k = .5 + .5 * Math.sin(tt * 2.6); ax = [-.35, -.45 - k * .3]; az = [.15, -.25 - k * .3]; fx = [-1.3, -1.4 - k * .4]; hy = -.55 + Math.sin(tt * .9) * .12; open = .4 + .4 * Math.sin(tt * 5); break; }
+      case 'type': { const look = Math.sin(tt * .3) > .8; ax = [-.32, -.32]; az = [.1, -.1]; fx = [-1.3 + Math.sin(tt * 11) * .05, -1.3 + Math.cos(tt * 9) * .05]; hx = look ? -.05 : .38; hy = look ? Math.sin(tt) * .3 : Math.sin(tt * 3) * .04; break; }
+      case 'scroll': ax = [-.3, -.4]; az = [.12, -.1]; fx = [-1.4, -1.75 + Math.sin(tt * 2) * .04]; hx = .42; hy = -.12; break;
+      case 'clap': { const k = .5 + .5 * Math.sin(tt * 7); ax = [-1.2, -1.2]; az = [.1 + .28 * k, -.1 - .28 * k]; fx = [-1.2, -1.2]; hx = -.05; open = .5 * e; break; }
+      case 'arms': ax = [-2.7 + s2 * .1, -2.75 - s2 * .1]; az = [.3, -.3]; fx = [.3, .3]; hx = -.18; lean = -.08; open = .6 + .4 * Math.sin(tt * 3); break;
+      case 'wave': ax = [-2.7, -2.7]; az = [.2 + Math.sin(tt * 4) * .45, -.2 + Math.sin(tt * 4) * .45]; fx = [.3, .3]; hx = -.15; open = .5 + .5 * Math.sin(tt * 3); break;
+    }
+    // A hazard brings everyone forward in their seat, hands up.
+    if (e > .2 && st !== 'arms' && st !== 'wave') { ax = [ax[0] * (1 - e) - 2.6 * e, ax[1] * (1 - e) - 2.6 * e]; fx = [fx[0] * (1 - e) + .3 * e, fx[1] * (1 - e) + .3 * e]; az = [az[0] * (1 - e) + .3 * e, az[1] * (1 - e) - .3 * e]; hx = hx * (1 - e) - .2 * e; open = Math.max(open, e); }
+    L.rotation.x = ax[0]; R.rotation.x = ax[1]; L.rotation.z = az[0]; R.rotation.z = az[1]; fL.rotation.x = fx[0]; fR.rotation.x = fx[1];
+    this.group.position.y = this.base + Math.abs(Math.sin(tt * 2)) * .012 * e;
+    this.group.rotation.x = lean + e * .1;
+    this.group.rotation.z = this.lean * .5 + Math.sin(tt * .5) * .012;
+    this.head.rotation.x = hx; this.head.rotation.y = hy; this.head.rotation.z = Math.sin(tt * .8) * .03;
+    const o = Math.max(0, open);
+    this.mouth.scale.set(1.2 + o * .5, .3 + o * 1.9, .5 + o * .5);
   }
 }
 /**

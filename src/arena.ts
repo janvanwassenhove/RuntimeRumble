@@ -33,6 +33,7 @@ export class ArenaVisual {
   private ring: T.Mesh | null = null;
   private ringMat: T.MeshStandardMaterial | null = null;
   private crowd: ReturnType<typeof cheeringCrowd> | null = null;
+  private audience: ReturnType<typeof seatedAudience> | null = null;
   private surge: Walker[] = [];
   private escalators: ReturnType<typeof escalatorSkin> | null = null;
   private spots: T.SpotLight[] = [];
@@ -182,7 +183,7 @@ export class ArenaVisual {
       for (let c = -22; c <= 22; c++) { const x = c * 1.2; if (Math.abs(c) === 4) continue; const zz = z + x * x * .004; seat(x, y, zz, velvet, shell); spots.push({x, y: y + .5, z: zz - .02}); }
     }
     this.root.add(...seatMeshes(velvet, shell));
-    const audience = seatedAudience(spots, 7 + this.index); this.root.add(audience);
+    this.audience = seatedAudience(spots, 7 + this.index); this.root.add(this.audience.group);
     for (const s of [-1, 1]) f.add(new T.BoxGeometry(.05, .7, .22), mats.warm, this.root, {p: [s * 31.9, 2.6, -6]});
     this.downlights(f, 9, mats.cool, 6, 8, [-9, -3, 3, 9], () => false, .11);
     lightbox(this.root, this.T(textTex('PLEASE SILENCE YOUR ROBOTS', {h: 220, font: 96, accent: '#f0640f'})), 10, 2.15, 0, 6.2, -10.5, 0);
@@ -331,6 +332,7 @@ export class ArenaVisual {
     if (this.ring && this.ringMat) { this.ring.rotation.z += dt * (active ? 9 : warning ? 4 : .8); this.ringMat.emissiveIntensity = active ? 6 : warning ? 3 + Math.sin(time * 16) * 2 : 1.6 + Math.sin(time * 2) * .5; }
     this.escalators?.tick(-dt);
     this.crowd?.update(time, active ? 1 : warning ? .3 : 0);
+    this.audience?.update(time, active ? 1 : warning ? .3 : 0);
     // The corridor's let-out: they cross the strip, disappear behind the camera and queue up again.
     for (const w of this.surge) {
       const z = w.group.position.z;

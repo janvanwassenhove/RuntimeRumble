@@ -69,7 +69,7 @@ Six slices of Kinepolis Antwerp, dressed the way Richie dresses the whole buildi
 - `src/kit.ts`, `src/textures.ts`: the modelling kit (primitives baked and merged per material) and the generated texture set, shared with Richie.
 - `src/venue.ts`: the venue kit — materials, signage, booths, gadgets, escalators, seats.
 - `src/arena.ts`: the six arena sets, hazards, carts and crowds.
-- `src/people.ts`: the procedural conference crowd — eight-heads-tall figures with faces, hands, fabric grain and glossy eyes, and the fans behind every fight, each cheering on their own beat and always with both hands up: double fist pumps, jumping, filming on a phone, hoisting a laptop, waving a sign (`git push --force`, `SUDO WIN`), a foam finger.
+- `src/people.ts`: the procedural conference crowd — eight-heads-tall figures with faces, hands, fabric grain and glossy eyes, and the fans behind every fight, each cheering on their own beat and always with both hands up: double fist pumps, jumping, filming on a phone, hoisting a laptop, waving a sign (`git push --force`, `SUDO WIN`), a foam finger. The auditorium's seated rows sit naturally — hands in laps, arms folded, laptops on knees, phones — and the front rows type, scroll, clap and chat, coming up out of their seats when a hazard fires.
 - `src/input.ts`, `src/keys.ts`: keyboard (rebindable), touch stick and buttons, controller abstraction.
 - `src/audio.ts`: original Web Audio effects/music and optional browser speech synthesis.
 - `src/main.ts`, `src/style.css`: menus, portraits, HUD, touch layout, settings, results and intro.
